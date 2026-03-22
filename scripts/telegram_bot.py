@@ -246,7 +246,8 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
         save_onboard_state(udir, {"step": "awaiting_oauth", "name": name, "weight_kg": weight_kg, "ftp": ftp, "nonce": nonce})
 
         # Also write nonce → chat_id mapping for the OAuth callback
-        nonce_dir = Path.home() / ".config" / "strava-onboarding" / "pending" / "nonces"
+        # Must be under CONFIG_DIR so it's on the shared volume with the web container.
+        nonce_dir = CONFIG_DIR / "nonces"
         nonce_dir.mkdir(parents=True, exist_ok=True)
         (nonce_dir / f"{nonce}.json").write_text(json.dumps({
             "chat_id":   chat_id,

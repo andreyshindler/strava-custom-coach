@@ -339,34 +339,21 @@ def tg_callback():
     if error or not code or not nonce:
         return render_template("error.html", message="Strava authorization was denied or link is invalid.")
 
-    # Look up chat_id from nonce
-    nonce_dir  = Path.home() / ".config" / "strava-onboarding" / "pending" / "nonces"
+    # Look up chat_id + user data from nonce
+    # Nonces are written by the bot under CONFIG_DIR/nonces/ (shared volume).
+    nonce_dir  = Path.home() / ".config" / "strava" / "nonces"
     nonce_file = nonce_dir / f"{nonce}.json"
     if not nonce_file.exists():
-        return render_template("error.html", message="Link expired or already used. Send /start to the onboarding bot again.")
+        return render_template("error.html", message="Link expired or already used. Send /start to the bot again.")
 
     try:
         nonce_data = json.loads(nonce_file.read_text())
-        chat_id    = nonce_data["chat_id"]
-        nonce_ftp  = nonce_data.get("ftp", 200)
-        nonce_weight = nonce_data.get("weight_kg", 75)
-        nonce_name = nonce_data.get("name", "")
+        chat_id   = nonce_data["chat_id"]
+        ftp       = nonce_data.get("ftp", 200)
+        weight_kg = nonce_data.get("weight_kg", 75)
+        name      = nonce_data.get("name", "")
     except Exception:
         return render_template("error.html", message="Invalid onboarding state. Please start again.")
-
-    # Load pending state (bot_token, client_id, client_secret, ftp)
-    state_file = Path.home() / ".config" / "strava-onboarding" / "pending" / f"{chat_id}.json"
-    if not state_file.exists():
-        return render_template("error.html", message="Session expired. Please send /start to the onboarding bot again.")
-
-    try:
-        state = json.loads(state_file.read_text())
-    except Exception:
-        return render_template("error.html", message="Corrupted session state. Please send /start again.")
-
-    ftp       = state.get("ftp", nonce_ftp)
-    weight_kg = state.get("weight_kg", nonce_weight)
-    name      = state.get("name", nonce_name)
 
     # Owner's Strava app credentials (shared by all customers)
     owner_config_file = Path.home() / ".config" / "strava" / "config.json"
