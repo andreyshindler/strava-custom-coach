@@ -245,29 +245,29 @@
   </div>
 
   <div class="card">
-    <div class="card-title">What to do next</div>
+    <div class="card-title">You're already in — here's what to do</div>
 
     <div class="next-step">
-      <div class="step-icon">💬</div>
+      <div class="step-icon">📱</div>
       <div class="step-content">
-        <h3>Open your Telegram bot</h3>
-        <p>Search for <code>@{{ bot_username }}</code> on Telegram and send it a message to get started.</p>
+        <h3>Go back to Telegram</h3>
+        <p>Your coach is already waiting for you there. You can close this page.</p>
       </div>
     </div>
 
     <div class="next-step">
-      <div class="step-icon">❓</div>
+      <div class="step-icon">📌</div>
       <div class="step-content">
-        <h3>Try a command</h3>
-        <p>Send <code>/help</code> to see all commands, or <code>/ride</code> to analyze your latest Strava activity.</p>
+        <h3>Pin your coach</h3>
+        <p>Long-press the chat and tap <strong>Pin</strong> so your coach is always one tap away.</p>
       </div>
     </div>
 
     <div class="next-step">
       <div class="step-icon">🎯</div>
       <div class="step-content">
-        <h3>Choose your coach</h3>
-        <p>Send <code>/coach</code> to pick your coaching persona — Pogačar, Nino Schurter, Merckx, or Hinault.</p>
+        <h3>Choose your coaching style</h3>
+        <p>Send <code>/coach</code> to pick your persona — Pogačar, Nino Schurter, Merckx, or Hinault.</p>
       </div>
     </div>
 
@@ -275,18 +275,12 @@
       <div class="step-icon">🔔</div>
       <div class="step-content">
         <h3>Automatic ride analysis</h3>
-        <p>After every ride, your bot will automatically send you a full analysis with coaching feedback.</p>
+        <p>After every ride your coach will send you a full analysis with feedback. No action needed.</p>
       </div>
     </div>
   </div>
 
-  {% if bot_username %}
-  <a href="https://t.me/{{ bot_username }}" target="_blank" class="tg-link">
-    OPEN @{{ bot_username }} →
-  </a>
-  {% endif %}
-
-  <a href="/" class="back-link">← Set up another account</a>
+  <p style="font-size: 13px; color: var(--muted); margin-bottom: 16px;">You may close this page and return to Telegram.</p>
 
 </div>
 </body>
