@@ -384,64 +384,11 @@
   {% endif %}
 
   <form class="card" method="POST" action="/onboard" id="form">
-
-    <div class="section-label">Your details</div>
-
-    <div class="field">
-      <label>Your name <span class="req">*</span></label>
-      <input type="text" name="username" placeholder="e.g. cristiano" required autocomplete="off">
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label>FTP <span class="hint">watts</span></label>
-        <input type="number" name="ftp" value="220" min="100" max="500">
-      </div>
-      <div class="field">
-        <label>Weight <span class="hint">kg</span></label>
-        <input type="number" name="weight_kg" value="75" min="40" max="150" step="0.5">
-      </div>
-    </div>
-
-    <div class="divider"></div>
-    <div class="section-label">Telegram bot</div>
-
-    <div class="tg-helper">
-      <strong>Don't have a bot yet?</strong><br>
-      Open Telegram → <a href="https://t.me/BotFather" target="_blank">@BotFather</a> → type <strong>/newbot</strong> → follow prompts → paste the token below.
-    </div>
-
-    <div class="field">
-      <label>Bot Token <span class="req">*</span></label>
-      <input type="text" name="bot_token" placeholder="1234567890:AAExxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" required autocomplete="off" style="font-family: 'DM Mono', monospace; font-size: 13px;">
-    </div>
-
-    <div class="field">
-      <label>Your Telegram Chat ID <span class="hint">where to send messages</span></label>
-      <input type="text" name="chat_id" placeholder="e.g. 123456789" autocomplete="off">
-      <div style="font-size: 12px; color: var(--muted); margin-top: 6px;">
-        Don't know your Chat ID? Message <a href="https://t.me/userinfobot" target="_blank" style="color: var(--orange);">@userinfobot</a> on Telegram.
-      </div>
-    </div>
-
-    <div class="divider"></div>
-    <div class="section-label">Strava API</div>
-
-    <div class="tg-helper">
-      Go to <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a> → create an app (callback domain: <strong>localhost</strong>) → copy Client ID and Secret below.
-    </div>
-
-    <div class="field">
-      <label>Client ID <span class="req">*</span></label>
-      <input type="text" name="client_id" placeholder="12345" required autocomplete="off" style="font-family: 'DM Mono', monospace;">
-    </div>
-
-    <div class="field">
-      <label>Client Secret <span class="req">*</span></label>
-      <input type="password" name="client_secret" placeholder="••••••••••••••••••••••••" required autocomplete="off">
-    </div>
-
-    <div style="margin-top: 28px;">
+    <div class="section-label">Get started</div>
+    <p style="font-size: 14px; color: var(--muted); margin-bottom: 28px; line-height: 1.6;">
+      Your personal AI coach is ready. Just connect your Strava account and the bot will guide you through the rest.
+    </p>
+    <div>
       <button type="submit" class="btn" id="submit-btn">
         <span class="btn-text">CONNECT WITH STRAVA →</span>
         <span class="btn-loading">CONNECTING...</span>
@@ -450,7 +397,6 @@
         You'll be redirected to Strava to authorize access to your activities.
       </p>
     </div>
-
   </form>
 
 </div>

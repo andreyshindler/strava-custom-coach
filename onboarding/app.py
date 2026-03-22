@@ -233,71 +233,9 @@ def index():
 @app.route("/onboard", methods=["POST"])
 @limiter.limit("10 per hour")
 def onboard():
-    raw_username  = request.form.get("username", "").strip()
-    bot_token     = request.form.get("bot_token", "").strip()
-    client_id     = request.form.get("client_id", "").strip()
-    client_secret = request.form.get("client_secret", "").strip()
-    chat_id       = request.form.get("chat_id", "").strip()
-
-    # Sanitize username
-    username = safe_username(raw_username)
-    if not username:
-        return render_template("index.html", error="Username must be at least 2 letters or numbers.")
-
-    # Clamp numeric fields to sane ranges
-    try:
-        ftp       = max(50,  min(600, int(request.form.get("ftp", 220))))
-        weight_kg = max(30.0, min(200.0, float(request.form.get("weight_kg", 75))))
-    except (ValueError, TypeError):
-        return render_template("index.html", error="FTP and weight must be numbers.")
-
-    if not all([bot_token, client_id, client_secret]):
-        return render_template("index.html", error="Please fill in all required fields.")
-
-    # Validate bot token format before hitting Telegram API
-    if not re.match(r"^\d{8,12}:[A-Za-z0-9_-]{35}$", bot_token):
-        return render_template("index.html", error="Telegram bot token format is invalid.")
-
-    # Validate Strava client_id is numeric only
-    if not re.match(r"^\d+$", client_id):
-        return render_template("index.html", error="Strava Client ID must be a number.")
-
-    # Confirm bot token is live with Telegram
-    try:
-        tg_url = f"https://api.telegram.org/bot{bot_token}/getMe"
-        with urllib.request.urlopen(tg_url, timeout=5) as resp:
-            tg_data = json.loads(resp.read())
-        if not tg_data.get("ok"):
-            return render_template("index.html", error="Invalid Telegram bot token.")
-        bot_username = tg_data["result"].get("username", "")
-    except Exception:
-        return render_template("index.html", error="Could not validate Telegram bot token.")
-
-    session["username"]      = username
-    session["bot_token"]     = bot_token
-    session["bot_username"]  = bot_username
-    session["client_id"]     = client_id
-    session["client_secret"] = client_secret
-    session["ftp"]           = ftp
-    session["weight_kg"]     = weight_kg
-    session["chat_id"]       = chat_id
-
-    # Anthropic API key injected server-side — never comes from the form
-    write_config(username, {
-        "client_id":                      client_id,
-        "client_secret":                  client_secret,
-        "telegram_bot_token":             bot_token,
-        "telegram_chat_id":               chat_id,
-        "ftp":                            ftp,
-        "weight_kg":                      weight_kg,
-        "monitoring_frequency_minutes":   30,
-        "training_plan_active":           False,
-        "notification_on_plan_deviation": True,
-        "persona":                        "pogi",
-        "webhook_verify_token":           os.environ.get("WEBHOOK_VERIFY_TOKEN", "strava-coach"),
-        # NOTE: anthropic_api_key is NOT stored here — it is passed as a
-        # Docker -e env var at container start so it never touches the filesystem.
-    })
+    client_id = os.environ.get("STRAVA_CLIENT_ID", "")
+    if not client_id:
+        return render_template("index.html", error="Server configuration error. Please contact the admin.")
 
     strava_url = (
         "https://www.strava.com/oauth/authorize"
@@ -408,7 +346,11 @@ def tg_callback():
         return render_template("error.html", message="Link expired or already used. Send /start to the onboarding bot again.")
 
     try:
-        chat_id = json.loads(nonce_file.read_text())["chat_id"]
+        nonce_data = json.loads(nonce_file.read_text())
+        chat_id    = nonce_data["chat_id"]
+        nonce_ftp  = nonce_data.get("ftp", 200)
+        nonce_weight = nonce_data.get("weight_kg", 75)
+        nonce_name = nonce_data.get("name", "")
     except Exception:
         return render_template("error.html", message="Invalid onboarding state. Please start again.")
 
@@ -422,7 +364,9 @@ def tg_callback():
     except Exception:
         return render_template("error.html", message="Corrupted session state. Please send /start again.")
 
-    ftp = state.get("ftp", 200)
+    ftp       = state.get("ftp", nonce_ftp)
+    weight_kg = state.get("weight_kg", nonce_weight)
+    name      = state.get("name", nonce_name)
 
     # Owner's Strava app credentials (shared by all customers)
     owner_config_file = Path.home() / ".config" / "strava" / "config.json"
@@ -456,8 +400,9 @@ def tg_callback():
         "client_secret":                  client_secret,
         "telegram_bot_token":             os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", ""),
         "telegram_chat_id":               chat_id,
+        "name":                           name,
         "ftp":                            ftp,
-        "weight_kg":                      75,
+        "weight_kg":                      weight_kg,
         "monitoring_frequency_minutes":   30,
         "training_plan_active":           False,
         "notification_on_plan_deviation": True,

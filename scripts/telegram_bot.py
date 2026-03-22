@@ -180,16 +180,11 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
     state = load_onboard_state(udir)
 
     if text.lower() in ("/start", "/setup") or not state:
-        save_onboard_state(udir, {"step": "ftp"})
+        save_onboard_state(udir, {"step": "name"})
         send_message(token, chat_id,
             "👋 *Welcome to Strava Custom Coach!*\n\n"
-            "I need one thing before we start:\n\n"
-            "*What is your FTP (Functional Threshold Power)?*\n\n"
-            "This is the max power you can hold for ~1 hour.\n"
-            "• Beginner: 100–180 W\n"
-            "• Recreational: 180–250 W\n"
-            "• Advanced: 250 W+\n\n"
-            "Send your FTP in watts, or *0* if unknown (I'll use 200 W)."
+            "Let's get you set up in 3 quick steps.\n\n"
+            "*What's your name?*"
         )
         return
 
@@ -199,6 +194,39 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
         return
 
     step = state.get("step")
+
+    if step == "name":
+        name = text.strip()
+        if not name or len(name) < 2:
+            send_message(token, chat_id, "❌ Please enter your name (at least 2 characters).")
+            return
+        save_onboard_state(udir, {"step": "weight", "name": name})
+        send_message(token, chat_id,
+            f"Nice to meet you, *{name}*! 💪\n\n"
+            "*What is your weight in kg?*\n\n"
+            "_(e.g. 75)_"
+        )
+        return
+
+    if step == "weight":
+        try:
+            weight_kg = float(text.replace(",", "."))
+            if not 30 <= weight_kg <= 250:
+                raise ValueError
+        except ValueError:
+            send_message(token, chat_id, "❌ Please enter a valid weight between 30 and 250 kg.")
+            return
+        save_onboard_state(udir, {**state, "step": "ftp", "weight_kg": weight_kg})
+        send_message(token, chat_id,
+            f"✅ Weight set to *{weight_kg} kg*\n\n"
+            "*What is your FTP (Functional Threshold Power)?*\n\n"
+            "This is the max power you can hold for ~1 hour.\n"
+            "• Beginner: 100–180 W\n"
+            "• Recreational: 180–250 W\n"
+            "• Advanced: 250 W+\n\n"
+            "Send your FTP in watts, or *0* if unknown (I'll use 200 W)."
+        )
+        return
 
     if step == "ftp":
         try:
@@ -211,13 +239,21 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
         if ftp == 0:
             ftp = 200
 
+        name      = state.get("name", chat_id)
+        weight_kg = state.get("weight_kg", 75)
+
         nonce = _secrets.token_urlsafe(16)
-        save_onboard_state(udir, {"step": "awaiting_oauth", "ftp": ftp, "nonce": nonce})
+        save_onboard_state(udir, {"step": "awaiting_oauth", "name": name, "weight_kg": weight_kg, "ftp": ftp, "nonce": nonce})
 
         # Also write nonce → chat_id mapping for the OAuth callback
         nonce_dir = Path.home() / ".config" / "strava-onboarding" / "pending" / "nonces"
         nonce_dir.mkdir(parents=True, exist_ok=True)
-        (nonce_dir / f"{nonce}.json").write_text(json.dumps({"chat_id": chat_id, "ftp": ftp}))
+        (nonce_dir / f"{nonce}.json").write_text(json.dumps({
+            "chat_id":   chat_id,
+            "name":      name,
+            "weight_kg": weight_kg,
+            "ftp":       ftp,
+        }))
 
         auth_url = _build_strava_auth_url(nonce)
         send_message(token, chat_id,
