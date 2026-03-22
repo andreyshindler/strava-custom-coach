@@ -1571,20 +1571,20 @@ def cmd_chat(user_message, persona):
     )
     dynamic_block = f"Athlete FTP: {ftp}W\n{strava_ctx}{plan_ctx}".strip()
 
+    system_blocks = [
+        {
+            "type": "text",
+            "text": stable_block,
+            "cache_control": {"type": "ephemeral"},
+        },
+    ]
+    if dynamic_block:
+        system_blocks.append({"type": "text", "text": dynamic_block})
+
     payload = json.dumps({
         "model": "claude-sonnet-4-5",
         "max_tokens": 250,
-        "system": [
-            {
-                "type": "text",
-                "text": stable_block,
-                "cache_control": {"type": "ephemeral"},
-            },
-            {
-                "type": "text",
-                "text": dynamic_block,
-            },
-        ],
+        "system": system_blocks,
         "messages": [{"role": "user", "content": user_message}]
     }).encode()
 
