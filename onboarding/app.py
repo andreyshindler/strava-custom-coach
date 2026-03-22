@@ -398,64 +398,21 @@ def tg_callback():
     }, indent=2))
     (per_user_dir / "tokens.json").write_text(json.dumps(tokens, indent=2))
 
-    # Container name derived from chat_id
-    cname = f"strava-coach-tg{re.sub(r'[^a-z0-9]', '', chat_id.lower())}"
-    if not validate_container_name(cname):
-        cname = f"strava-coach-u{chat_id[-8:]}"
-
-    ws_dir    = str(CODE_DIR.resolve())
-    bot_token_env = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
-
-    subprocess.run(["docker", "rm", "-f", cname], capture_output=True)
-    try:
-        subprocess.run([
-            "docker", "run", "-d",
-            "--name",    cname,
-            "--restart", "unless-stopped",
-            "--memory",  "256m",
-            "--cpus",    "0.5",
-            "--network", "bridge",
-            "--read-only",
-            "--tmpfs",   "/tmp",
-            "-e", f"ANTHROPIC_API_KEY={os.environ.get('ANTHROPIC_API_KEY', '')}",
-            "-e", f"STRAVA_TELEGRAM_BOT_TOKEN={bot_token_env}",
-            "-e", f"STRAVA_TELEGRAM_CHAT_ID={chat_id}",
-            "-e", f"PUBLIC_URL={os.environ.get('PUBLIC_URL', '')}",
-            "-v", f"{ws_dir}:/workspace:ro",
-            "-v", f"{str(per_user_dir)}:/root/.config/strava",
-            "-w", "/workspace",
-            "python:3.11-slim",
-            "bash", "-c",
-            "while true; do python3 /workspace/scripts/telegram_bot.py --once; sleep 5; done"
-        ], check=True)
-        container_ok = True
-    except Exception as e:
-        container_ok = False
-        print(f"[tg_callback] Docker error for chat_id={chat_id}: {e}")
-
-    # Clean up nonce and state files
+    # Clean up nonce file
     try:
         nonce_file.unlink(missing_ok=True)
-        state_file.unlink(missing_ok=True)
     except Exception:
         pass
 
-    # Send Telegram confirmation using owner's bot token
+    # Send Telegram confirmation
     bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
     if bot_token and chat_id:
         try:
-            if container_ok:
-                msg = (
-                    f"✅ *You're all set, {athlete_name}!*\n\n"
-                    f"Your Strava Custom Coach is now running.\n\n"
-                    f"Try /ride to analyze your latest activity, or /help to see all commands."
-                )
-            else:
-                msg = (
-                    f"✅ *Strava connected, {athlete_name}!*\n\n"
-                    f"Your account is set up but the coaching bot had a startup issue. "
-                    f"Please contact support."
-                )
+            msg = (
+                f"✅ *You're all set, {athlete_name}!*\n\n"
+                f"Your Strava account is connected.\n\n"
+                f"Try /ride to analyze your latest activity, or /help to see all commands."
+            )
             data = urllib.parse.urlencode({
                 "chat_id":    chat_id,
                 "text":       msg,
@@ -474,7 +431,7 @@ def tg_callback():
         username=athlete_name,
         athlete_name=athlete_name,
         bot_username="",
-        container_ok=container_ok,
+        container_ok=True,
     )
 
 
