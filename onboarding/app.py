@@ -403,9 +403,9 @@ def tg_callback():
     }, indent=2))
     (per_user_dir / "tokens.json").write_text(json.dumps(tokens, indent=2))
 
-    # Set default $1 demo quota for new users
+    # Set $0 quota — admin must manually grant demo allowance
     (per_user_dir / "demo_quota.json").write_text(json.dumps({
-        "allowance_usd": 1.00,
+        "allowance_usd": 0.00,
         "spent_usd": 0.0,
     }, indent=2))
 
@@ -415,18 +415,14 @@ def tg_callback():
     except Exception:
         pass
 
-    # Send Telegram confirmation
     bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
-    if bot_token and chat_id:
+    admin_id  = os.environ.get("ADMIN_CHAT_ID", "")
+
+    def _tg_send(to_chat_id, text):
         try:
-            msg = (
-                f"✅ *You're all set, {athlete_name}!*\n\n"
-                f"Your Strava account is connected.\n\n"
-                f"Try /ride to analyze your latest activity, or /help to see all commands."
-            )
             data = urllib.parse.urlencode({
-                "chat_id":    chat_id,
-                "text":       msg,
+                "chat_id":    to_chat_id,
+                "text":       text,
                 "parse_mode": "Markdown",
             }).encode()
             req = urllib.request.Request(
@@ -436,7 +432,26 @@ def tg_callback():
             with urllib.request.urlopen(req, timeout=10) as resp:
                 resp.read()
         except Exception as e:
-            print(f"[tg_callback] Telegram confirmation error: {e}")
+            print(f"[tg_callback] Telegram send error to {to_chat_id}: {e}")
+
+    if bot_token:
+        # Confirm to user
+        _tg_send(chat_id,
+            f"✅ *You're all set, {athlete_name}!*\n\n"
+            f"Your account is connected. The admin will activate your access shortly.\n\n"
+            f"You'll be notified as soon as your demo is ready."
+        )
+        # Notify admin
+        if admin_id:
+            _tg_send(admin_id,
+                f"🆕 *New user registered!*\n\n"
+                f"👤 Name: *{name or athlete_name}*\n"
+                f"🆔 Chat ID: `{chat_id}`\n"
+                f"⚖️ Weight: {weight_kg} kg\n"
+                f"⚡ FTP: {ftp} W\n\n"
+                f"Grant demo access:\n"
+                f"`/admin quota {chat_id} 1.00`"
+            )
 
     return render_template("success.html",
         username=athlete_name,

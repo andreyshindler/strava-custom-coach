@@ -402,6 +402,7 @@ CMD_GROUPS = {
     "start":     "free",
     "setup":     "free",
     "quota":     "free",
+    "contact":   "free",
 }
 
 
@@ -628,6 +629,7 @@ def cmd_help(persona):
         f"  /trends — week-by-week trend analysis (30 days)\n"
         f"  /trends 90 — trends for last N days\n"
         f"  /quota — check your AI usage & limit\n"
+        f"  /contact — get in touch with support\n"
         f"  /help — this message"
     )
 
@@ -1930,7 +1932,13 @@ def handle_message(token, message):
 
     voice_text = None
 
-    if cmd in ("start", "setup"):
+    if cmd == "contact":
+        reply = (
+            "📬 *Need help or have a question?*\n\n"
+            "Reach out to the admin directly on Telegram:\n"
+            "👉 @SuperMariooo"
+        )
+    elif cmd in ("start", "setup"):
         reply = cmd_help(persona)
     elif cmd == "quota":
         reply = cmd_quota(_UDIR)
