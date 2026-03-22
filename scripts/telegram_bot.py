@@ -1639,10 +1639,45 @@ def cmd_admin(chat_id: str, args: list) -> str:
             "*Admin commands:*\n"
             "`/admin quota <id> <$>` — set demo allowance\n"
             "`/admin quota <id>` — check a user's quota\n"
-            "`/admin quotas` — list all users with quotas"
+            "`/admin quotas` — list all users with quotas\n"
+            "`/admin stats` — global usage summary"
         )
 
     sub = args[0].lower()
+
+    if sub == "stats":
+        users_dir = CONFIG_DIR / "users"
+        if not users_dir.exists():
+            return "No users yet."
+        total_spent = 0.0
+        total_allowance = 0.0
+        user_count = 0
+        over_limit = 0
+        for udir in users_dir.iterdir():
+            if not udir.is_dir():
+                continue
+            user_count += 1
+            q = get_demo_quota(udir)
+            spent     = q.get("spent_usd", 0.0)
+            allowance = q.get("allowance_usd")
+            total_spent += spent
+            if allowance:
+                total_allowance += allowance
+                if spent >= allowance:
+                    over_limit += 1
+        # Include admin's own usage
+        admin_dir = CONFIG_DIR / "users" / chat_id
+        admin_q   = get_demo_quota(admin_dir)
+        admin_spent = admin_q.get("spent_usd", 0.0)
+
+        return (
+            f"*Global usage summary:*\n\n"
+            f"👥 Total users: {user_count}\n"
+            f"💸 Total spent: ${total_spent:.4f}\n"
+            f"🎯 Total allowances: ${total_allowance:.2f}\n"
+            f"🔴 Over limit: {over_limit} user(s)\n\n"
+            f"*Your usage (admin):* ${admin_spent:.4f}"
+        )
 
     if sub == "quotas":
         users_dir = CONFIG_DIR / "users"
