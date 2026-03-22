@@ -125,6 +125,30 @@ def record_ai_cost(user_dir: Path, input_tokens: int, output_tokens: int) -> flo
     _quota_file(user_dir).write_text(json.dumps(quota))
     return cost
 
+def cmd_quota(user_dir: Path) -> str:
+    """Show the user their current AI usage and quota."""
+    _, spent, allowance = check_demo_quota(user_dir)
+    if allowance is None:
+        return (
+            f"*Your usage:*\n\n"
+            f"💸 Spent: ${spent:.4f}\n"
+            f"♾️ Limit: Unlimited"
+        )
+    remaining = max(0.0, allowance - spent)
+    pct = (spent / allowance * 100) if allowance > 0 else 100
+    bar_filled = int(pct / 10)
+    bar = "█" * bar_filled + "░" * (10 - bar_filled)
+    status = "🔴 Limit reached" if spent >= allowance else "🟢 Active"
+    return (
+        f"*Your AI usage:*\n\n"
+        f"{bar} {pct:.0f}%\n\n"
+        f"💸 Spent: ${spent:.4f}\n"
+        f"🎯 Limit: ${allowance:.2f}\n"
+        f"💰 Remaining: ${remaining:.4f}\n\n"
+        f"Status: {status}"
+    )
+
+
 def check_demo_quota(user_dir: Path) -> tuple[bool, float, float | None]:
     """Return (allowed, spent_usd, allowance_usd). allowed=True when under quota or unlimited."""
     quota      = get_demo_quota(user_dir)
@@ -377,6 +401,7 @@ CMD_GROUPS = {
     "deleteplan":"free",
     "start":     "free",
     "setup":     "free",
+    "quota":     "free",
 }
 
 
@@ -602,6 +627,7 @@ def cmd_help(persona):
         f"  /stats 30 — last 30 days summary (or /stats30)\n"
         f"  /trends — week-by-week trend analysis (30 days)\n"
         f"  /trends 90 — trends for last N days\n"
+        f"  /quota — check your AI usage & limit\n"
         f"  /help — this message"
     )
 
@@ -1862,6 +1888,8 @@ def handle_message(token, message):
 
     if cmd in ("start", "setup"):
         reply = cmd_help(persona)
+    elif cmd == "quota":
+        reply = cmd_quota(_UDIR)
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":

@@ -398,6 +398,12 @@ def tg_callback():
     }, indent=2))
     (per_user_dir / "tokens.json").write_text(json.dumps(tokens, indent=2))
 
+    # Set default $1 demo quota for new users
+    (per_user_dir / "demo_quota.json").write_text(json.dumps({
+        "allowance_usd": 1.00,
+        "spent_usd": 0.0,
+    }, indent=2))
+
     # Clean up nonce file
     try:
         nonce_file.unlink(missing_ok=True)
