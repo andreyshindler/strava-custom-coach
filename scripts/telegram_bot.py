@@ -1605,6 +1605,10 @@ def cmd_chat(user_message, persona):
         record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
         reply = data["content"][0]["text"].strip()
         return f"_{reply}_\n\n— {persona['name']}"
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        log.error(f"Anthropic API {e.code}: {body}")
+        return f"⚠️ Coach is unavailable right now: {e}"
     except Exception as e:
         return f"⚠️ Coach is unavailable right now: {e}"
 
