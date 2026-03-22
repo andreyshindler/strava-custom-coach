@@ -208,7 +208,8 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
         send_message(token, chat_id,
             "👋 *Welcome to Strava Custom Coach!*\n\n"
             "Let's get you set up in 3 quick steps.\n\n"
-            "*What's your name?*"
+            "*What's your name?*\n\n"
+            "📋 [Privacy Policy](https://srv1515969.hstgr.cloud/privacy)"
         )
         return
 
