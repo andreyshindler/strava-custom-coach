@@ -1,0 +1,67 @@
+services:
+  # Least-privilege Docker API proxy — only container CRUD allowed.
+  # The web service talks to this instead of the raw Docker socket.
+  dockerproxy:
+    image: tecnativa/docker-socket-proxy
+    restart: unless-stopped
+    environment:
+      CONTAINERS: 1   # list / inspect / create / start / stop / delete containers
+      POST: 1         # allow POST (create/start/stop/kill)
+      DELETE: 1       # allow DELETE (remove containers)
+      # Everything else (images, volumes, networks, swarm, exec, build) defaults to 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - dockerproxy-net
+
+  bot:
+    build: .
+    restart: unless-stopped
+    environment:
+      - STRAVA_TELEGRAM_BOT_TOKEN=${STRAVA_TELEGRAM_BOT_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - PUBLIC_URL=${PUBLIC_URL}
+    volumes:
+      - strava-data:/root/.config/strava
+      - strava-cache:/root/.cache/strava
+
+  web:
+    build: .
+    restart: unless-stopped
+    command: gunicorn --workers 2 --bind 0.0.0.0:5000 app:app
+    working_dir: /app/onboarding
+    ports:
+      - "${WEB_PORT:-5000}:5000"
+    environment:
+      - FLASK_SECRET=${FLASK_SECRET}
+      - PUBLIC_URL=${PUBLIC_URL}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - STRAVA_TELEGRAM_BOT_TOKEN=${STRAVA_TELEGRAM_BOT_TOKEN}
+      - ADMIN_USER=${ADMIN_USER:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - WEBHOOK_VERIFY_TOKEN=${WEBHOOK_VERIFY_TOKEN:-strava-coach}
+      # CODE_DIR must be the host-side path — child containers are spawned by the host Docker daemon
+      - CODE_DIR=${CODE_DIR}
+      - USERS_BASE_DIR=/data/users
+      # Route Docker API calls through the least-privilege proxy
+      - DOCKER_HOST=tcp://dockerproxy:2375
+    volumes:
+      - strava-data:/root/.config/strava
+      - strava-cache:/root/.cache/strava
+      - users-data:/data/users
+    depends_on:
+      - dockerproxy
+    networks:
+      - default
+      - dockerproxy-net
+
+volumes:
+  strava-data:
+  strava-cache:
+  users-data:
+
+networks:
+  default:
+  dockerproxy-net:
+    # Internal-only — the proxy is unreachable from outside the host
+    internal: true

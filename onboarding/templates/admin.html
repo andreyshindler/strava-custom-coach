@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Strava Custom Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --orange: #FC4C02; --black: #0a0a0a; --card: #18191c; --border: #2a2b2e; --text: #e8e8e8; --muted: #6b6d73; --green: #22c55e; --red: #ef4444; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--black); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+  .container { max-width: 900px; margin: 0 auto; padding: 48px 24px; }
+  .header { margin-bottom: 40px; }
+  .logo { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--orange); margin-bottom: 8px; }
+  h1 { font-family: 'Bebas Neue', sans-serif; font-size: 52px; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 40px; color: var(--orange); }
+  .stat-label { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
+  td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid rgba(42,43,46,0.5); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .dot.green { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .dot.red { background: var(--red); }
+  code { font-family: 'DM Mono', monospace; background: rgba(252,76,2,0.08); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
+  .empty { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
+  .back { display: inline-block; margin-top: 32px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="logo">ADMIN PANEL</div>
+    <h1>ALL USERS</h1>
+  </div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-value">{{ users|length }}</div>
+      <div class="stat-label">Total Users</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ users|selectattr('running')|list|length }}</div>
+      <div class="stat-label">Running Bots</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ users|rejectattr('running')|list|length }}</div>
+      <div class="stat-label">Offline</div>
+    </div>
+  </div>
+
+  {% if users %}
+  <table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Container</th>
+        <th>Status</th>
+        <th>FTP</th>
+        <th>Bot Token</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td><strong>{{ u.folder }}</strong></td>
+        <td><code>{{ u.container }}</code></td>
+        <td>
+          <span class="dot {% if u.running %}green{% else %}red{% endif %}"></span>
+          {% if u.running %}Running{% else %}Stopped{% endif %}
+        </td>
+        <td>{{ u.ftp }}W</td>
+        <td style="color: var(--muted); font-family: 'DM Mono', monospace; font-size: 11px;">{{ u.bot }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No users yet. <a href="/" style="color: var(--orange);">Onboard the first one →</a></div>
+  {% endif %}
+
+  <a href="/" class="back">← Back to onboarding</a>
+</div>
+</body>
+</html>

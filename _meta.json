@@ -1,0 +1,24 @@
+{
+  "name": "strava-custom-coach",
+  "version": "2.0.0",
+  "description": "Track and analyze cycling performance from Strava. Includes automated ride analysis, fitness trend monitoring, and personalized training plan generation with goal-based periodization.",
+  "author": "openclaw",
+  "tags": ["cycling", "strava", "training", "fitness", "automation"],
+  "scripts": {
+    "training_plan.py": "Generate and manage personalized training plans",
+    "analyze_rides.py": "Analyze recent rides with power/HR metrics",
+    "get_latest_ride.py": "Fetch and summarize the most recent ride",
+    "analyze_ride.py": "Deep-analyze a specific ride by activity ID",
+    "monitor_rides.sh": "Background monitor for new ride detection",
+    "auto_analyze_new_rides.sh": "Cron-compatible ride checker with Telegram"
+  },
+  "references": {
+    "training-zones.md": "Power/HR zone definitions and TSS reference",
+    "plan-templates.md": "Pre-built plan template structures by goal",
+    "api.md": "Strava API field reference"
+  },
+  "config": {
+    "location": "~/.config/strava/config.json",
+    "plan_location": "~/.config/strava/training_plan.json"
+  }
+}

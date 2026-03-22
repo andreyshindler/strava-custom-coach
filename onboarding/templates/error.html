@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Error — Strava Custom Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --orange: #FC4C02; --black: #0a0a0a; --card: #18191c; --border: #2a2b2e; --text: #e8e8e8; --muted: #6b6d73; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--black); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300;
+    min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px; text-align: center;
+  }
+  .container { max-width: 420px; animation: fadeUp 0.6s ease both; }
+  .icon { font-size: 48px; margin-bottom: 24px; }
+  h1 { font-family: 'Bebas Neue', sans-serif; font-size: 60px; margin-bottom: 12px; }
+  h1 span { color: var(--orange); display: block; }
+  p { color: var(--muted); font-size: 15px; line-height: 1.6; margin-bottom: 32px; }
+  a {
+    display: inline-block; padding: 14px 28px; background: var(--orange); border-radius: 10px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px; color: white; text-decoration: none;
+  }
+  a:hover { background: #d93e00; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="icon">⚠️</div>
+  <h1>SOMETHING<span>WENT WRONG</span></h1>
+  <p>{{ message }}</p>
+  <a href="/">← TRY AGAIN</a>
+</div>
+</body>
+</html>
