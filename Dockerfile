@@ -10,10 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install piper TTS (lightweight neural TTS)
+# Install piper TTS — extract full bundle (binary + shared libs)
 RUN curl -L https://github.com/rhasspy/piper/releases/download/2023.11.14-2/piper_linux_x86_64.tar.gz \
-    | tar -xz -C /usr/local/bin --strip-components=1 piper/piper \
-    && chmod +x /usr/local/bin/piper
+    | tar -xz -C /opt && \
+    ln -s /opt/piper/piper /usr/local/bin/piper && \
+    echo "/opt/piper" > /etc/ld.so.conf.d/piper.conf && ldconfig
 
 # Download piper voice model (en_US ryan medium)
 RUN mkdir -p /root/.local/share/piper && \

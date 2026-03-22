@@ -818,8 +818,8 @@ def send_voice(token, chat_id, text, persona_id="nino"):
         capture_output=True
     )
     if proc.returncode != 0 or not os.path.exists(wav_file):
-        # Fallback to espeak if piper fails
-        subprocess.run(["espeak", text, "-w", wav_file], capture_output=True)
+        # Fallback to espeak-ng if piper fails
+        subprocess.run(["espeak-ng", text, "-w", wav_file], capture_output=True)
 
     if not os.path.exists(wav_file):
         return False, "TTS generation failed"
