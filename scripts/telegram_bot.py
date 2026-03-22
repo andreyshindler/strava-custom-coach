@@ -375,6 +375,8 @@ CMD_GROUPS = {
     "help":      "free",
     "coach":     "free",
     "deleteplan":"free",
+    "start":     "free",
+    "setup":     "free",
 }
 
 
@@ -382,7 +384,7 @@ def check_rate_limit(chat_id: str, cmd: str) -> tuple[bool, int]:
     """Check if this user is allowed to run this command right now.
     Returns (allowed: bool, seconds_remaining: int).
     """
-    group = CMD_GROUPS.get(cmd, "expensive")  # default expensive for unknown cmds
+    group = CMD_GROUPS.get(cmd, "ai_and_strava")  # default most restrictive for unknown cmds
     cooldown = RATE_LIMITS[group]
     if cooldown == 0:
         return True, 0
@@ -1791,7 +1793,7 @@ def handle_message(token, message):
 
     _allowed, _wait = check_rate_limit(chat_id, _rate_cmd)
     if not _allowed:
-        group = CMD_GROUPS.get(_rate_cmd, "expensive")
+        group = CMD_GROUPS.get(_rate_cmd, "ai_and_strava")
         send_message(token, chat_id,
             f"⏳ *Slow down!*\n\n"
             f"The `/{_rate_cmd}` command is rate limited. "
