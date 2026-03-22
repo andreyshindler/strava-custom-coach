@@ -1866,6 +1866,25 @@ def handle_message(token, message):
                 f"You've used ${_spent:.4f} of your ${_allowance:.2f} demo credit.\n\n"
                 f"Contact the admin to upgrade your account and unlock full access."
             )
+            # Notify admin
+            admin_id = os.environ.get("ADMIN_CHAT_ID", "")
+            if not admin_id and CONFIG_FILE.exists():
+                try:
+                    admin_id = str(json.loads(CONFIG_FILE.read_text()).get("telegram_chat_id", ""))
+                except Exception:
+                    pass
+            if admin_id and admin_id != chat_id:
+                try:
+                    user_cfg  = _UDIR / "config.json"
+                    user_name = json.loads(user_cfg.read_text()).get("name", chat_id) if user_cfg.exists() else chat_id
+                    send_message(token, admin_id,
+                        f"🔔 *Quota alert*\n\n"
+                        f"User *{user_name}* (`{chat_id}`) has reached their demo limit "
+                        f"(${_spent:.4f} / ${_allowance:.2f}).\n\n"
+                        f"Use `/admin quota {chat_id} <amount>` to top them up."
+                    )
+                except Exception:
+                    pass
             return
 
     # ── Check if user is mid-wizard ───────────────────────────────────────────
