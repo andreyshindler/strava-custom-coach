@@ -56,6 +56,20 @@ CONFIG_FILE  = CONFIG_DIR / "config.json"
 LOG_FILE     = CONFIG_DIR / "bot.log"
 PUBLIC_URL   = os.environ.get("PUBLIC_URL", "http://localhost:5000")
 
+
+def _init_strava_config():
+    """Seed config.json from env vars on startup (Docker env → file)."""
+    cfg = json.loads(CONFIG_FILE.read_text()) if CONFIG_FILE.exists() else {}
+    if os.environ.get("STRAVA_CLIENT_ID"):
+        cfg["client_id"] = os.environ["STRAVA_CLIENT_ID"]
+    if os.environ.get("STRAVA_CLIENT_SECRET"):
+        cfg["client_secret"] = os.environ["STRAVA_CLIENT_SECRET"]
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(json.dumps(cfg, indent=2))
+
+_init_strava_config()
+
+
 # ── Per-user data dir ─────────────────────────────────────────────────────────
 # In Docker per-user mode (STRAVA_TELEGRAM_CHAT_ID set), the mounted dir IS the
 # user's config dir, so we use CONFIG_DIR directly.

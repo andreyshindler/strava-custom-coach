@@ -21,9 +21,11 @@ services:
       - STRAVA_TELEGRAM_BOT_TOKEN=${STRAVA_TELEGRAM_BOT_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - PUBLIC_URL=${PUBLIC_URL}
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
     volumes:
-      - strava-data:/root/.config/strava
-      - strava-cache:/root/.cache/strava
+      - /home/komodo/projects/strava-coach-bot:/root/.config/strava
+      - /home/komodo/projects/strava-coach-bot-cache:/root/.cache/strava
 
   web:
     build: .
@@ -46,8 +48,8 @@ services:
       # Route Docker API calls through the least-privilege proxy
       - DOCKER_HOST=tcp://dockerproxy:2375
     volumes:
-      - strava-data:/root/.config/strava
-      - strava-cache:/root/.cache/strava
+      - /home/komodo/projects/strava-coach-bot:/root/.config/strava
+      - /home/komodo/projects/strava-coach-bot-cache:/root/.cache/strava
       - users-data:/data/users
     depends_on:
       - dockerproxy
@@ -56,8 +58,6 @@ services:
       - dockerproxy-net
 
 volumes:
-  strava-data:
-  strava-cache:
   users-data:
 
 networks:
