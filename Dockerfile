@@ -14,12 +14,12 @@ RUN curl -L https://github.com/rhasspy/piper/releases/download/2023.11.14-2/pipe
     | tar -xz -C /usr/local/bin --strip-components=1 piper/piper \
     && chmod +x /usr/local/bin/piper
 
-# Download piper voice model (en_US ryan medium)
+# Download piper voice model (en_US lessac high quality)
 RUN mkdir -p /root/.local/share/piper && \
-    curl -L -o /root/.local/share/piper/en_US-ryan-medium.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx && \
-    curl -L -o /root/.local/share/piper/en_US-ryan-medium.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json
+    curl -L -o /root/.local/share/piper/en_US-lessac-high.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && \
+    curl -L -o /root/.local/share/piper/en_US-lessac-high.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json
 
 # Install gunicorn + onboarding deps
 COPY onboarding/requirements.txt /tmp/req-onboarding.txt
