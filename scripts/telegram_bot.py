@@ -1810,26 +1810,12 @@ def handle_message(token, message):
     persona = load_active_persona(_UDIR / "config.json")
 
     # ── Per-user rate limiting ────────────────────────────────────────────────
-    # Determine the command key for rate limiting before full dispatch.
+    # Determine the command key for quota check.
     # Plain-text messages (AI chat) use the "_chat" key.
     if text.startswith("/"):
         _rate_cmd = text.lstrip("/").split()[0].lower().split("@")[0]
     else:
         _rate_cmd = "_chat"
-
-    _allowed, _wait = check_rate_limit(chat_id, _rate_cmd)
-    if not _allowed:
-        group = CMD_GROUPS.get(_rate_cmd, "ai_and_strava")
-        send_message(token, chat_id,
-            f"⏳ *Slow down!*\n\n"
-            f"The `/{_rate_cmd}` command is rate limited. "
-            f"Please wait *{_wait}s* before trying again.\n\n"
-            f"_This keeps the bot running smoothly for everyone._"
-        )
-        return
-
-    # Record this command use (before execution so re-entrant calls are also limited)
-    record_command_use(chat_id, _rate_cmd)
 
     # ── Demo quota check (AI commands only) ───────────────────────────────────
     _ai_group = CMD_GROUPS.get(_rate_cmd, "free")
