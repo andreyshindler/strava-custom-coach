@@ -2,9 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system deps: espeak for TTS fallback, ffmpeg for audio conversion
+# Install system deps: libespeak-ng1 required by piper, ffmpeg for audio
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    espeak \
+    libespeak-ng1 \
+    espeak-ng \
     ffmpeg \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -14,12 +15,12 @@ RUN curl -L https://github.com/rhasspy/piper/releases/download/2023.11.14-2/pipe
     | tar -xz -C /usr/local/bin --strip-components=1 piper/piper \
     && chmod +x /usr/local/bin/piper
 
-# Download piper voice model (en_US lessac high quality)
+# Download piper voice model (en_US ryan medium)
 RUN mkdir -p /root/.local/share/piper && \
-    curl -L -o /root/.local/share/piper/en_US-lessac-high.onnx \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx && \
-    curl -L -o /root/.local/share/piper/en_US-lessac-high.onnx.json \
-    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/high/en_US-lessac-high.onnx.json
+    curl -L -o /root/.local/share/piper/en_US-ryan-medium.onnx \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx && \
+    curl -L -o /root/.local/share/piper/en_US-ryan-medium.onnx.json \
+    https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/medium/en_US-ryan-medium.onnx.json
 
 # Install gunicorn + onboarding deps
 COPY onboarding/requirements.txt /tmp/req-onboarding.txt

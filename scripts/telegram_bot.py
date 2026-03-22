@@ -808,7 +808,7 @@ def send_voice(token, chat_id, text, persona_id="nino"):
     import subprocess
     import os
 
-    model = os.path.expanduser("~/.local/share/piper/en_US-lessac-high.onnx")
+    model = os.path.expanduser("~/.local/share/piper/en_US-ryan-medium.onnx")
     wav_file = "/tmp/coach_voice.wav"
 
     # Generate WAV with Piper
