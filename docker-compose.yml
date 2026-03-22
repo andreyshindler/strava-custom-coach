@@ -42,6 +42,8 @@ services:
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
       - WEBHOOK_VERIFY_TOKEN=${WEBHOOK_VERIFY_TOKEN:-strava-coach}
+      - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
+      - STRAVA_CLIENT_SECRET=${STRAVA_CLIENT_SECRET}
       # CODE_DIR must be the host-side path — child containers are spawned by the host Docker daemon
       - CODE_DIR=${CODE_DIR}
       - USERS_BASE_DIR=/data/users
