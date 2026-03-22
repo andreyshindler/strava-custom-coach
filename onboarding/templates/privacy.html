@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy — MTB Custom Coach</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --orange: #FC4C02;
+    --black: #0a0a0a;
+    --dark: #111214;
+    --card: #18191c;
+    --border: #2a2b2e;
+    --text: #e8e8e8;
+    --muted: #6b6d73;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--black);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 300;
+    min-height: 100vh;
+    padding: 48px 24px 80px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 10% 20%, rgba(252,76,2,0.05) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container {
+    max-width: 720px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 48px;
+  }
+
+  .logo-icon {
+    width: 40px;
+    height: 40px;
+    background: var(--orange);
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  .logo-text {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 2px;
+  }
+
+  h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(40px, 8vw, 64px);
+    line-height: 0.95;
+    margin-bottom: 8px;
+  }
+
+  h1 span { color: var(--orange); display: block; }
+
+  .updated {
+    font-size: 13px;
+    color: var(--muted);
+    font-family: 'DM Mono', monospace;
+    margin-bottom: 48px;
+  }
+
+  .section {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px 32px;
+    margin-bottom: 16px;
+  }
+
+  .section-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--orange);
+    margin-bottom: 8px;
+  }
+
+  h2 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 14px;
+  }
+
+  p {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 10px;
+  }
+
+  p:last-child { margin-bottom: 0; }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 10px 0 0;
+  }
+
+  ul li {
+    font-size: 14px;
+    color: var(--muted);
+    line-height: 1.7;
+    padding-left: 16px;
+    position: relative;
+    margin-bottom: 4px;
+  }
+
+  ul li::before {
+    content: '—';
+    position: absolute;
+    left: 0;
+    color: var(--orange);
+  }
+
+  a { color: var(--orange); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  strong { color: var(--text); font-weight: 500; }
+
+  .footer {
+    margin-top: 40px;
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <div class="logo">
+    <div class="logo-icon">🚴</div>
+    <span class="logo-text">MTB Custom Coach</span>
+  </div>
+
+  <h1>PRIVACY<span>POLICY</span></h1>
+  <p class="updated">Last updated: March 22, 2026</p>
+
+  <div class="section">
+    <div class="section-num">01</div>
+    <h2>Overview</h2>
+    <p>MTB Custom Coach is a Telegram bot that connects to your MTB account to provide AI-powered cycling coaching. This policy explains what data we collect, how we use it, and your rights.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">02</div>
+    <h2>Data We Collect</h2>
+    <p>When you use the bot, we collect and store:</p>
+    <ul>
+      <li>Your <strong>Telegram chat ID</strong> and <strong>name</strong> (provided during setup)</li>
+      <li>Your <strong>FTP</strong> (Functional Threshold Power) and <strong>body weight</strong> (provided during setup)</li>
+      <li>Your <strong>MTB OAuth tokens</strong> (to read your activity data on your behalf)</li>
+      <li>Your <strong>MTB activity data</strong> — distances, power, heart rate, duration, dates</li>
+      <li>Your <strong>AI usage</strong> — token counts and cost estimates for quota management</li>
+    </ul>
+    <p style="margin-top: 14px;">We do <strong>not</strong> collect passwords, payment details, or any data beyond what is listed above.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">03</div>
+    <h2>How We Use Your Data</h2>
+    <p>Your data is used exclusively to:</p>
+    <ul>
+      <li>Analyze your cycling activities and provide coaching feedback</li>
+      <li>Generate training plans tailored to your fitness level</li>
+      <li>Track AI usage for fair-use quota management</li>
+    </ul>
+    <p style="margin-top: 14px;">Your data is <strong>never sold, shared, or used for advertising</strong>.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">04</div>
+    <h2>Third-Party Services</h2>
+    <p>This bot integrates with:</p>
+    <ul>
+      <li><strong>MTB</strong> — to read your activity data</li>
+      <li><strong>Telegram</strong> — to deliver messages. Governed by <a href="https://telegram.org/privacy" target="_blank">Telegram's Privacy Policy</a></li>
+      <li><strong>Anthropic (Claude AI)</strong> — to generate coaching responses. Your activity data is sent to Anthropic's API to produce coaching feedback. Governed by <a href="https://www.anthropic.com/privacy" target="_blank">Anthropic's Privacy Policy</a></li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-num">05</div>
+    <h2>Data Storage</h2>
+    <p>Your data is stored on a private server. MTB tokens and activity data are stored locally and are not transmitted to any party other than those listed in Section 4.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">06</div>
+    <h2>Data Retention</h2>
+    <p>Your data is retained for as long as your account is active. You may request deletion at any time by contacting the admin via Telegram.</p>
+  </div>
+
+  <div class="section">
+    <div class="section-num">07</div>
+    <h2>Your Rights</h2>
+    <ul>
+      <li><strong>Access</strong> — request a copy of your stored data</li>
+      <li><strong>Deletion</strong> — request your data be permanently deleted</li>
+      <li><strong>Revoke access</strong> — disconnect MTB at any time via your MTB account settings</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <div class="section-num">08</div>
+    <h2>Contact</h2>
+    <p>For any privacy-related requests, contact the bot administrator directly via Telegram.</p>
+  </div>
+
+  <p class="footer">This policy may be updated from time to time.<br>Continued use of the bot constitutes acceptance of the updated policy.</p>
+
+</div>
+</body>
+</html>
