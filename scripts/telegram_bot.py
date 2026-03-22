@@ -1860,7 +1860,9 @@ def handle_message(token, message):
 
     voice_text = None
 
-    if cmd == "help":
+    if cmd in ("start", "setup"):
+        reply = cmd_help(persona)
+    elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":
         reply = cmd_coach(args, persona)
