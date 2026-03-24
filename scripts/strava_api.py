@@ -74,6 +74,10 @@ def refresh_token_if_needed(tokens, config, user_dir=None):
     req = urllib.request.Request("https://www.strava.com/oauth/token", data=data, method="POST")
     new_tokens = json.loads(urlopen_with_retry(req, timeout=15))
 
+    # Preserve athlete profile — Strava only includes it in the initial auth, not refreshes
+    if "athlete" not in new_tokens and "athlete" in tokens:
+        new_tokens["athlete"] = tokens["athlete"]
+
     token_file = (user_dir / "tokens.json") if user_dir else TOKEN_FILE
     token_file.write_text(json.dumps(new_tokens, indent=2))
     return new_tokens, True
