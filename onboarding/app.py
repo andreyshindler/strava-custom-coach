@@ -424,20 +424,7 @@ def tg_callback():
     admin_id  = os.environ.get("ADMIN_CHAT_ID", "")
 
     def _tg_send(to_chat_id, text):
-        try:
-            data = urllib.parse.urlencode({
-                "chat_id":    to_chat_id,
-                "text":       text,
-                "parse_mode": "Markdown",
-            }).encode()
-            req = urllib.request.Request(
-                f"https://api.telegram.org/bot{bot_token}/sendMessage",
-                data=data, method="POST"
-            )
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                resp.read()
-        except Exception as e:
-            print(f"[tg_callback] Telegram send error to {to_chat_id}: {e}")
+        _tg_send_msg(to_chat_id, text, bot_token)
 
     if bot_token:
         # Confirm to user
@@ -464,6 +451,28 @@ def tg_callback():
         bot_username="",
         container_ok=True,
     )
+
+
+def _tg_send_msg(to_chat_id, text, bot_token=None):
+    """Send a Telegram message. Uses STRAVA_TELEGRAM_BOT_TOKEN if bot_token not provided."""
+    if bot_token is None:
+        bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+    if not bot_token:
+        return
+    try:
+        data = urllib.parse.urlencode({
+            "chat_id":    to_chat_id,
+            "text":       text,
+            "parse_mode": "Markdown",
+        }).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{bot_token}/sendMessage",
+            data=data, method="POST"
+        )
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            resp.read()
+    except Exception as e:
+        print(f"[tg_send] Telegram send error to {to_chat_id}: {e}")
 
 
 # ── Strava Webhook ────────────────────────────────────────────────────────────
@@ -627,7 +636,7 @@ def webhook_event():
         msg      = _build_ride_message(activity, ftp, weight, persona)
         bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         if bot_token and chat_id:
-            _tg_send(chat_id, msg)
+            _tg_send_msg(chat_id, msg, bot_token)
             print(f"[webhook] Notified {chat_id} for activity {activity_id}")
     except Exception as e:
         print(f"[webhook] Error processing activity {activity_id}: {e}")
