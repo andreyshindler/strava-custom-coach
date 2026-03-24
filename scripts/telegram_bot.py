@@ -432,6 +432,7 @@ CMD_GROUPS = {
     "quota":     "free",
     "contact":   "free",
     "notify":    "free",
+    "leave":     "free",
 }
 
 
@@ -1836,6 +1837,77 @@ def _delete_confirm_file():
     return _UDIR / "pending_delete.txt"
 
 
+def _leave_confirm_file():
+    return _UDIR / "pending_leave.txt"
+
+
+def cmd_leave():
+    """Ask for confirmation before revoking Strava access and deleting all data."""
+    _UDIR.mkdir(parents=True, exist_ok=True)
+    _leave_confirm_file().write_text("pending")
+    return (
+        "⚠️ *Are you sure you want to leave?*\n\n"
+        "This will:\n"
+        "— Revoke your Strava authorization\n"
+        "— Delete all your data from this bot\n"
+        "— Stop all coaching and notifications\n\n"
+        "This *cannot be undone*.\n\n"
+        "Reply *yes* to confirm or *no* to cancel."
+    )
+
+
+def _do_leave(token: str, chat_id: str):
+    """Revoke Strava token and delete all user data."""
+    import shutil
+
+    # Revoke Strava token
+    tf = _UDIR / "tokens.json"
+    if tf.exists():
+        try:
+            tokens     = json.loads(tf.read_text())
+            access_tok = tokens.get("access_token", "")
+            if access_tok:
+                data = urllib.parse.urlencode({"access_token": access_tok}).encode()
+                req  = urllib.request.Request(
+                    "https://www.strava.com/oauth/deauthorize", data=data, method="POST"
+                )
+                urllib.request.urlopen(req, timeout=10)
+        except Exception as e:
+            log.warning(f"Strava deauth failed for {chat_id}: {e}")
+
+    # Get user name before deleting
+    cfg_file = _UDIR / "config.json"
+    user_name = chat_id
+    if cfg_file.exists():
+        try:
+            user_name = json.loads(cfg_file.read_text()).get("name", chat_id)
+        except Exception:
+            pass
+
+    # Delete all user data
+    try:
+        shutil.rmtree(_UDIR)
+    except Exception as e:
+        log.warning(f"Failed to delete user dir for {chat_id}: {e}")
+
+    # Notify admin
+    admin_id = os.environ.get("ADMIN_CHAT_ID", "")
+    if admin_id and admin_id != chat_id:
+        try:
+            send_message(token, admin_id,
+                f"👋 *User left*\n\n"
+                f"*{user_name}* (`{chat_id}`) has unsubscribed and revoked Strava access."
+            )
+        except Exception:
+            pass
+
+    return (
+        "✅ *Done. You've been unsubscribed.*\n\n"
+        "Your Strava authorization has been revoked and all your data deleted.\n\n"
+        "If you ever want to come back, just send /start."
+    )
+
+
 def cmd_deleteplan(persona):
     """Ask for confirmation before deleting."""
     plan_file = _UDIR / "training_plan.json"
@@ -2004,6 +2076,16 @@ def handle_message(token, message):
             send_message(token, chat_id, "👍 Deletion cancelled. Your plan is safe.")
         return
 
+    # ── Check if awaiting leave confirmation ──────────────────────────────────
+    if _leave_confirm_file().exists() and not text.startswith("/"):
+        if text.strip().lower() in ("yes", "y"):
+            reply = _do_leave(token, chat_id)
+            send_message(token, chat_id, reply)
+        else:
+            _leave_confirm_file().unlink()
+            send_message(token, chat_id, "👍 Cancelled. You're still here!")
+        return
+
     # ── Plain text — AI coaching chat ─────────────────────────────────────────
     if not text.startswith("/"):
         send_typing(token, chat_id)  # refresh typing before slow Claude call
@@ -2032,6 +2114,8 @@ def handle_message(token, message):
         reply = cmd_quota(_UDIR)
     elif cmd == "notify":
         reply = cmd_notify(_UDIR, args)
+    elif cmd == "leave":
+        reply = cmd_leave()
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":
