@@ -632,7 +632,7 @@ def webhook_event():
         ftp      = cfg.get("ftp", 220)
         weight   = cfg.get("weight_kg", 75)
         chat_id  = str(cfg.get("telegram_chat_id", ""))
-        persona  = load_active_persona(user_dir)
+        persona  = load_active_persona(user_dir / "config.json")
         msg      = _build_ride_message(activity, ftp, weight, persona)
         bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         if bot_token and chat_id:
