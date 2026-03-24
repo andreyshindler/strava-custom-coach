@@ -1671,7 +1671,9 @@ def cmd_admin(chat_id: str, args: list) -> str:
             "`/admin quota <id> <$>` — set demo allowance\n"
             "`/admin quota <id>` — check a user's quota\n"
             "`/admin quotas` — list all users with quotas\n"
-            "`/admin stats` — global usage summary"
+            "`/admin stats` — global usage summary\n"
+            "`/admin users` — count users (all / strava / pending)\n"
+            "`/admin list` — list all users with names"
         )
 
     sub = args[0].lower()
@@ -1769,6 +1771,52 @@ def cmd_admin(chat_id: str, args: list) -> str:
         if new_allowance is None:
             return f"✅ User `{target_id}` quota removed — unlimited access."
         return f"✅ User `{target_id}` demo allowance set to ${new_allowance:.2f}."
+
+    if sub == "users":
+        users_dir = CONFIG_DIR / "users"
+        if not users_dir.exists():
+            return "No users yet."
+        total = strava = pending = 0
+        for udir in users_dir.iterdir():
+            if not udir.is_dir():
+                continue
+            total += 1
+            if (udir / "tokens.json").exists():
+                strava += 1
+            else:
+                pending += 1
+        return (
+            f"*User counts:*\n\n"
+            f"👥 Total: {total}\n"
+            f"✅ Strava connected: {strava}\n"
+            f"⏳ Pending (no Strava auth): {pending}"
+        )
+
+    if sub == "list":
+        users_dir = CONFIG_DIR / "users"
+        if not users_dir.exists():
+            return "No users yet."
+        rows = []
+        for udir in sorted(users_dir.iterdir()):
+            if not udir.is_dir():
+                continue
+            cfg_file = udir / "config.json"
+            name = "—"
+            if cfg_file.exists():
+                try:
+                    cfg  = json.loads(cfg_file.read_text())
+                    name = cfg.get("name", "—")
+                except Exception:
+                    pass
+            connected = "✅" if (udir / "tokens.json").exists() else "⏳"
+            q = get_demo_quota(udir)
+            spent     = q.get("spent_usd", 0.0)
+            allowance = q.get("allowance_usd")
+            quota_str = f"${spent:.3f}/${allowance:.2f}" if allowance is not None else f"${spent:.3f}/∞"
+            rows.append(f"{connected} *{name}* `{udir.name}`\n    {quota_str}")
+        if not rows:
+            return "No users found."
+        return "*All users:*\n\n" + "\n".join(rows)
 
     return f"Unknown admin sub-command `{sub}`. Try `/admin` for help."
 
