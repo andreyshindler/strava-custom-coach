@@ -125,6 +125,33 @@ def record_ai_cost(user_dir: Path, input_tokens: int, output_tokens: int) -> flo
     _quota_file(user_dir).write_text(json.dumps(quota))
     return cost
 
+def cmd_notify(user_dir: Path, args: list) -> str:
+    """Toggle or show automatic ride notification setting."""
+    cfg_file = user_dir / "config.json"
+    cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
+    current = cfg.get("auto_notify", True)
+
+    if not args:
+        status = "🟢 ON" if current else "🔴 OFF"
+        return (
+            f"*Ride notifications:* {status}\n\n"
+            f"I'll {'automatically send you a summary when a new ride appears on Strava' if current else 'stay quiet — use /ride to check manually'}.\n\n"
+            f"Toggle with `/notify on` or `/notify off`"
+        )
+
+    arg = args[0].lower()
+    if arg == "on":
+        cfg["auto_notify"] = True
+        cfg_file.write_text(json.dumps(cfg, indent=2))
+        return "🟢 *Ride notifications ON*\n\nI'll message you automatically after every ride."
+    elif arg == "off":
+        cfg["auto_notify"] = False
+        cfg_file.write_text(json.dumps(cfg, indent=2))
+        return "🔴 *Ride notifications OFF*\n\nUse /ride anytime to check your latest ride manually."
+    else:
+        return "Usage: `/notify on` or `/notify off`"
+
+
 def cmd_quota(user_dir: Path) -> str:
     """Show the user their current AI usage and quota."""
     _, spent, allowance = check_demo_quota(user_dir)
@@ -404,6 +431,7 @@ CMD_GROUPS = {
     "setup":     "free",
     "quota":     "free",
     "contact":   "free",
+    "notify":    "free",
 }
 
 
@@ -1943,6 +1971,8 @@ def handle_message(token, message):
         reply = cmd_help(persona)
     elif cmd == "quota":
         reply = cmd_quota(_UDIR)
+    elif cmd == "notify":
+        reply = cmd_notify(_UDIR, args)
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":

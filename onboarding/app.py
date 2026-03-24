@@ -12,15 +12,20 @@ Security measures applied:
   6. Docker containers resource-limited (RAM + CPU)
 """
 
+import hashlib
+import hmac
 import json
 import os
 import re
 import secrets
 import subprocess
+import sys
 import urllib.parse
 import urllib.request
 from functools import wraps
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 
 from flask import Flask, render_template, request, redirect, session, jsonify, Response
 from flask_limiter import Limiter
@@ -459,6 +464,175 @@ def tg_callback():
         bot_username="",
         container_ok=True,
     )
+
+
+# ── Strava Webhook ────────────────────────────────────────────────────────────
+# Strava POSTs activity events here. We look up the user by their Strava
+# athlete ID (owner_id in the event), then send them a ride analysis.
+
+USERS_DIR          = Path.home() / ".config" / "strava" / "users"
+WEBHOOK_VERIFY_TOK = os.environ.get("WEBHOOK_VERIFY_TOKEN", "strava-coach")
+
+
+def _find_user_by_strava_id(owner_id: int) -> Path | None:
+    """Scan all user dirs and return the one whose tokens.json athlete.id matches."""
+    if not USERS_DIR.exists():
+        return None
+    for d in USERS_DIR.iterdir():
+        if not d.is_dir():
+            continue
+        tf = d / "tokens.json"
+        if not tf.exists():
+            continue
+        try:
+            tokens = json.loads(tf.read_text())
+            if tokens.get("athlete", {}).get("id") == owner_id:
+                return d
+        except Exception:
+            continue
+    return None
+
+
+def _build_ride_message(activity, ftp, weight_kg, persona) -> str:
+    """Build the Telegram-friendly ride summary."""
+    from strava_api import meters_to_km, seconds_to_hm, estimate_tss, CYCLING_TYPES
+    from personas import pick_feedback
+
+    name  = activity.get("name", "Untitled")
+    date  = activity.get("start_date_local", "")[:10]
+    dist  = meters_to_km(activity.get("distance", 0))
+    dur   = seconds_to_hm(activity.get("moving_time", 0))
+    elev  = int(activity.get("total_elevation_gain", 0))
+    speed = round(activity.get("average_speed", 0) * 3.6, 1)
+    pwr   = activity.get("average_watts")
+    max_pwr = activity.get("max_watts")
+    hr    = activity.get("average_heartrate")
+    max_hr = activity.get("max_heartrate")
+    cad   = activity.get("average_cadence")
+    cals  = activity.get("calories")
+    tss   = estimate_tss(activity, ftp)
+    w_per_kg = round(pwr / weight_kg, 2) if pwr and weight_kg else None
+    intensity_factor = round((pwr * 1.05) / ftp, 2) if pwr and ftp else None
+
+    p = persona
+    lines = [
+        f"🚴 *New ride — {name}*",
+        f"_{date}   Coach: {p['name']}_",
+        "",
+        f"📍 {dist} km  |  {dur}  |  ↑{elev}m  |  {speed} km/h",
+    ]
+    if pwr:
+        pwr_line = f"⚡ {int(pwr)}W avg"
+        if max_pwr:
+            pwr_line += f"  (max {int(max_pwr)}W)"
+        if w_per_kg:
+            pwr_line += f"  |  {w_per_kg} W/kg"
+        lines.append(pwr_line)
+        if intensity_factor:
+            lines.append(f"   IF: {intensity_factor}  TSS: {tss}")
+    if hr:
+        hr_line = f"❤️  {int(hr)} bpm avg"
+        if max_hr:
+            hr_line += f"  (max {int(max_hr)})"
+        lines.append(hr_line)
+    if cad:
+        lines.append(f"🔄 {int(cad)} rpm avg cadence")
+    if cals:
+        lines.append(f"🔥 {int(cals)} kcal")
+
+    # Segment PRs
+    prs = [s for s in activity.get("segment_efforts", []) if s.get("pr_rank") == 1]
+    if prs:
+        lines.append(f"\n🏆 *PRs ({len(prs)})*")
+        for s in prs[:5]:
+            lines.append(f"  · {s['name']} — {seconds_to_hm(s.get('elapsed_time', 0))}")
+
+    # Coaching note
+    zf = p["zone_feedback"]
+    lines.append(f"\n{p['coach_label']}")
+    if intensity_factor:
+        if   intensity_factor < 0.65: note = pick_feedback(zf, "z1")
+        elif intensity_factor < 0.80: note = pick_feedback(zf, "z2")
+        elif intensity_factor < 0.95: note = pick_feedback(zf, "z3")
+        elif intensity_factor < 1.05: note = pick_feedback(zf, "z4")
+        else:                          note = pick_feedback(zf, "z5")
+    else:
+        note = pick_feedback(zf, "no_ftp")
+    lines.append(f"_{note}_")
+    return "\n".join(lines)
+
+
+@app.route("/webhook", methods=["GET"])
+def webhook_verify():
+    """Strava sends a GET to validate the subscription."""
+    mode      = request.args.get("hub.mode")
+    challenge = request.args.get("hub.challenge")
+    verify    = request.args.get("hub.verify_token")
+    if mode == "subscribe" and verify == WEBHOOK_VERIFY_TOK:
+        return jsonify({"hub.challenge": challenge})
+    return Response("Forbidden", 403)
+
+
+@app.route("/webhook", methods=["POST"])
+def webhook_event():
+    """Handle incoming Strava activity events (multi-tenant)."""
+    from strava_api import get_activity, CYCLING_TYPES
+    from personas import load_active_persona
+
+    # Verify HMAC signature
+    body = request.get_data()
+    sig  = request.headers.get("X-Hub-Signature", "")
+    if sig.startswith("sha256="):
+        secret   = WEBHOOK_VERIFY_TOK.encode()
+        expected = "sha256=" + hmac.new(secret, body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return Response("Forbidden", 403)
+
+    event = request.get_json(force=True, silent=True) or {}
+    print(f"[webhook] Event: {event}")
+
+    # Acknowledge immediately (Strava requires 200 within 2s)
+    # We process synchronously here — acceptable for low traffic
+    if event.get("object_type") != "activity" or event.get("aspect_type") == "delete":
+        return Response("EVENT_RECEIVED", 200)
+
+    owner_id    = event.get("owner_id")
+    activity_id = event.get("object_id")
+
+    user_dir = _find_user_by_strava_id(owner_id)
+    if not user_dir:
+        print(f"[webhook] No user found for Strava owner_id={owner_id}")
+        return Response("EVENT_RECEIVED", 200)
+
+    try:
+        activity = get_activity(activity_id, user_dir=user_dir)
+    except Exception as e:
+        print(f"[webhook] Failed to fetch activity {activity_id}: {e}")
+        return Response("EVENT_RECEIVED", 200)
+
+    sport = activity.get("sport_type") or activity.get("type", "")
+    if sport not in CYCLING_TYPES:
+        print(f"[webhook] Skipping non-cycling activity ({sport})")
+        return Response("EVENT_RECEIVED", 200)
+
+    try:
+        cfg      = json.loads((user_dir / "config.json").read_text())
+        if not cfg.get("auto_notify", True):
+            print(f"[webhook] Notifications disabled for owner_id={owner_id} — skipping")
+            return Response("EVENT_RECEIVED", 200)
+        ftp      = cfg.get("ftp", 220)
+        weight   = cfg.get("weight_kg", 75)
+        chat_id  = str(cfg.get("telegram_chat_id", ""))
+        persona  = load_active_persona(user_dir)
+        msg      = _build_ride_message(activity, ftp, weight, persona)
+        bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+        if bot_token and chat_id:
+            _tg_send(chat_id, msg)
+            print(f"[webhook] Notified {chat_id} for activity {activity_id}")
+    except Exception as e:
+        print(f"[webhook] Error processing activity {activity_id}: {e}")
+
+    return Response("EVENT_RECEIVED", 200)
 
 
 if __name__ == "__main__":
