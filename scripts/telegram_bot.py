@@ -1802,20 +1802,21 @@ def cmd_admin(chat_id: str, args: list) -> str:
                 continue
             cfg_file = udir / "config.json"
             name = "—"
-            if cfg_file.exists():
-                try:
-                    cfg  = json.loads(cfg_file.read_text())
-                    name = cfg.get("strava_name") or cfg.get("name", "—")
-                except Exception:
-                    pass
-            # Fallback: read from tokens.json athlete object
-            if name == "—" and (udir / "tokens.json").exists():
+            # Prefer Strava name from tokens.json (most reliable)
+            if (udir / "tokens.json").exists():
                 try:
                     t = json.loads((udir / "tokens.json").read_text())
                     a = t.get("athlete", {})
                     strava_name = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
                     if strava_name:
                         name = strava_name
+                except Exception:
+                    pass
+            # Fallback to config.json name
+            if name == "—" and cfg_file.exists():
+                try:
+                    cfg  = json.loads(cfg_file.read_text())
+                    name = cfg.get("strava_name") or cfg.get("name", "—")
                 except Exception:
                     pass
             connected = "✅" if (udir / "tokens.json").exists() else "⏳"
