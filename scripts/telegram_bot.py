@@ -1599,30 +1599,16 @@ def handle_wizard(state, text, persona):
         except ValueError:
             return "Please reply with a number between 4 and 24", False
         state["weeks"] = weeks
-        state["step"] = "xco"
-        save_wizard(state)
-        return (
-            f"✅ Duration: *{weeks} weeks*\n\n"
-            f"*STEP 4: Include XCO Power Training?*\n\n"
-            f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
-            f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
-            f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
-            f"Recommended if you race XCO or want explosive power.\n\n"
-            f"Reply *y* for yes or *n* for no"
-        ), False
-
-    # ── XCO ───────────────────────────────────────────────────────────────────
-    elif step == "xco":
-        xco = text.strip().lower() in ("y", "yes")
-        state["xco"] = xco
         goal = state.get("goal")
+        save_wizard(state)
 
+        # Step 4: goal-specific question (before XCO)
         if goal == "event":
             state["step"] = "event_name"
             save_wizard(state)
             return (
-                f"✅ XCO training: *{'Yes' if xco else 'No'}*\n\n"
-                f"*STEP 5: Event name*\n\n"
+                f"✅ Duration: *{weeks} weeks*\n\n"
+                f"*STEP 4: Event name*\n\n"
                 f"What is the name of your target event?\n"
                 f"_(e.g. 'XCO Regional Champs', 'Cape Epic', 'Gran Fondo')_"
             ), False
@@ -1631,10 +1617,10 @@ def handle_wizard(state, text, persona):
             save_wizard(state)
             ftp = state.get("ftp", 220)
             return (
-                f"✅ XCO training: *{'Yes' if xco else 'No'}*\n\n"
-                f"*STEP 5: Target FTP*\n\n"
+                f"✅ Duration: *{weeks} weeks*\n\n"
+                f"*STEP 4: Target FTP*\n\n"
                 f"Current FTP: *{ftp}W*\n"
-                f"Realistic gain in {state.get('weeks',8)} weeks: +10 to +30W\n\n"
+                f"Realistic gain in {weeks} weeks: +10 to +30W\n\n"
                 f"What FTP do you want to reach?\n"
                 f"_(reply with target watts, e.g. {ftp+20})_"
             ), False
@@ -1642,8 +1628,8 @@ def handle_wizard(state, text, persona):
             state["step"] = "target_km"
             save_wizard(state)
             return (
-                f"✅ XCO training: *{'Yes' if xco else 'No'}*\n\n"
-                f"*STEP 5: Weekly distance target*\n\n"
+                f"✅ Duration: *{weeks} weeks*\n\n"
+                f"*STEP 4: Weekly distance target*\n\n"
                 f"• 100 km/week — recreational\n"
                 f"• 150 km/week — enthusiast\n"
                 f"• 200 km/week — dedicated\n\n"
@@ -1653,16 +1639,23 @@ def handle_wizard(state, text, persona):
             state["step"] = "target_kg"
             save_wizard(state)
             return (
-                f"✅ XCO training: *{'Yes' if xco else 'No'}*\n\n"
-                f"*STEP 5: Target weight*\n\n"
+                f"✅ Duration: *{weeks} weeks*\n\n"
+                f"*STEP 4: Target weight*\n\n"
                 f"What is your target body weight in kg?\n"
                 f"_(reply with number, or 0 to skip)_"
             ), False
         else:
-            # General fitness — go straight to confirm
-            state["step"] = "confirm"
+            # General fitness — go straight to XCO
+            state["step"] = "xco"
             save_wizard(state)
-            return build_confirm_message(state), False
+            return (
+                f"✅ Duration: *{weeks} weeks*\n\n"
+                f"*STEP 4: Include XCO Power Training?*\n\n"
+                f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+                f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+                f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+                f"Recommended if you race XCO or want explosive power."
+            ), False
 
     # ── EVENT NAME ────────────────────────────────────────────────────────────
     elif step == "event_name":
@@ -1683,9 +1676,16 @@ def handle_wizard(state, text, persona):
         except ValueError:
             return "Please use the format *YYYY-MM-DD* (e.g. 2026-06-15)", False
         state["event_date"] = text.strip()
-        state["step"] = "confirm"
+        state["step"] = "xco"
         save_wizard(state)
-        return build_confirm_message(state), False
+        return (
+            f"✅ Event date: *{state['event_date']}*\n\n"
+            f"*STEP 5: Include XCO Power Training?*\n\n"
+            f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+            f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+            f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+            f"Recommended if you race XCO or want explosive power."
+        ), False
 
     # ── TARGET FTP ────────────────────────────────────────────────────────────
     elif step == "target_ftp":
@@ -1693,9 +1693,16 @@ def handle_wizard(state, text, persona):
             state["target_ftp"] = int(text.strip())
         except ValueError:
             return "Please reply with a number (target FTP in watts)", False
-        state["step"] = "confirm"
+        state["step"] = "xco"
         save_wizard(state)
-        return build_confirm_message(state), False
+        return (
+            f"✅ Target FTP: *{state['target_ftp']}W*\n\n"
+            f"*STEP 5: Include XCO Power Training?*\n\n"
+            f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+            f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+            f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+            f"Recommended if you race XCO or want explosive power."
+        ), False
 
     # ── TARGET KM ─────────────────────────────────────────────────────────────
     elif step == "target_km":
@@ -1703,9 +1710,16 @@ def handle_wizard(state, text, persona):
             state["target_km"] = int(text.strip())
         except ValueError:
             return "Please reply with a number (km per week)", False
-        state["step"] = "confirm"
+        state["step"] = "xco"
         save_wizard(state)
-        return build_confirm_message(state), False
+        return (
+            f"✅ Distance target: *{state['target_km']} km/week*\n\n"
+            f"*STEP 5: Include XCO Power Training?*\n\n"
+            f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+            f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+            f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+            f"Recommended if you race XCO or want explosive power."
+        ), False
 
     # ── TARGET KG ─────────────────────────────────────────────────────────────
     elif step == "target_kg":
@@ -1713,6 +1727,21 @@ def handle_wizard(state, text, persona):
             state["target_kg"] = float(text.strip())
         except ValueError:
             return "Please reply with a number (target kg, or 0 to skip)", False
+        state["step"] = "xco"
+        save_wizard(state)
+        return (
+            f"✅ Target weight: *{state['target_kg']} kg*\n\n"
+            f"*STEP 5: Include XCO Power Training?*\n\n"
+            f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+            f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+            f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+            f"Recommended if you race XCO or want explosive power."
+        ), False
+
+    # ── XCO ───────────────────────────────────────────────────────────────────
+    elif step == "xco":
+        xco = text.strip().lower() in ("y", "yes")
+        state["xco"] = xco
         state["step"] = "confirm"
         save_wizard(state)
         return build_confirm_message(state), False
