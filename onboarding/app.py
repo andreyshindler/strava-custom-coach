@@ -323,21 +323,42 @@ def status(username):
 @app.route("/admin")
 @require_admin
 def admin():
+    users_dir = Path.home() / ".config" / "strava" / "users"
     users = []
-    if BASE_DIR.exists():
-        for d in sorted(BASE_DIR.iterdir()):
-            if d.is_dir():
-                cfg_dir = d / "config"
-                cfg = json.loads((cfg_dir / "config.json").read_text()) if (cfg_dir / "config.json").exists() else {}
-                name = container_name(d.name)
-                users.append({
-                    "folder":    d.name,
-                    "container": name,
-                    "running":   container_running(name),
-                    "bot":       cfg.get("telegram_bot_token", "")[:20] + "..." if cfg.get("telegram_bot_token") else "—",
-                    "ftp":       cfg.get("ftp", "—"),
-                })
-    return render_template("admin.html", users=users)
+    if users_dir.exists():
+        for d in sorted(users_dir.iterdir()):
+            if not d.is_dir():
+                continue
+            cfg_file    = d / "config.json"
+            tokens_file = d / "tokens.json"
+            quota_file  = d / "demo_quota.json"
+
+            cfg    = json.loads(cfg_file.read_text())    if cfg_file.exists()    else {}
+            tokens = json.loads(tokens_file.read_text()) if tokens_file.exists() else {}
+            quota  = json.loads(quota_file.read_text())  if quota_file.exists()  else {}
+
+            athlete   = tokens.get("athlete", {})
+            strava_name = f"{athlete.get('firstname','')} {athlete.get('lastname','')}".strip()
+            name      = strava_name or cfg.get("name", d.name)
+            allowance = quota.get("allowance_usd")
+            spent     = quota.get("spent_usd", 0.0)
+            pct       = round(spent / allowance * 100, 1) if allowance else None
+
+            users.append({
+                "chat_id":   d.name,
+                "name":      name,
+                "strava":    tokens_file.exists(),
+                "ftp":       cfg.get("ftp", "—"),
+                "weight":    cfg.get("weight_kg", "—"),
+                "notify":    cfg.get("auto_notify", True),
+                "allowance": allowance,
+                "spent":     spent,
+                "pct":       pct,
+            })
+    total   = len(users)
+    strava  = sum(1 for u in users if u["strava"])
+    pending = total - strava
+    return render_template("admin.html", users=users, total=total, strava=strava, pending=pending)
 
 
 @app.route("/tg/callback")
