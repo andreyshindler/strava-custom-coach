@@ -157,21 +157,22 @@ def cmd_quota(user_dir: Path) -> str:
     _, spent, allowance = check_demo_quota(user_dir)
     if allowance is None:
         return (
-            f"*Your usage:*\n\n"
-            f"💸 Spent: ${spent:.4f}\n"
-            f"♾️ Limit: Unlimited"
+            f"*Your coaching credits:*\n\n"
+            f"♾️ Unlimited access"
         )
-    remaining = max(0.0, allowance - spent)
-    pct = (spent / allowance * 100) if allowance > 0 else 100
-    bar_filled = int(pct / 10)
+    pct_used = (spent / allowance * 100) if allowance > 0 else 100
+    pct_left  = max(0.0, 100 - pct_used)
+    bar_filled = int(pct_used / 10)
     bar = "█" * bar_filled + "░" * (10 - bar_filled)
-    status = "🔴 Limit reached" if spent >= allowance else "🟢 Active"
+    if pct_left == 0:
+        status = "🔴 Credits used up — contact admin to top up"
+    elif pct_left < 20:
+        status = "🟡 Running low — contact admin to top up"
+    else:
+        status = "🟢 Active"
     return (
-        f"*Your AI usage:*\n\n"
-        f"{bar} {pct:.0f}%\n\n"
-        f"💸 Spent: ${spent:.4f}\n"
-        f"🎯 Limit: ${allowance:.2f}\n"
-        f"💰 Remaining: ${remaining:.4f}\n\n"
+        f"*Your coaching credits:*\n\n"
+        f"{bar} {pct_left:.0f}% remaining\n\n"
         f"Status: {status}"
     )
 
