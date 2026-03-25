@@ -354,10 +354,10 @@ def admin():
             if db_file.exists():
                 try:
                     with _sqlite3.connect(db_file) as conn:
-                        row = conn.execute("SELECT COUNT(*), MAX(timestamp) FROM queries").fetchone()
-                        queries, last_query = row[0], row[1]
+                        row = conn.execute("SELECT COUNT(*), SUM(cost_usd), MAX(timestamp) FROM queries").fetchone()
+                        queries, total_cost, last_query = row[0], row[1] or 0.0, row[2]
                 except Exception:
-                    pass
+                    total_cost = 0.0
 
             users.append({
                 "chat_id":    d.name,
@@ -370,6 +370,7 @@ def admin():
                 "spent":      spent,
                 "pct":        pct,
                 "queries":    queries,
+                "total_cost": round(total_cost, 4),
                 "last_query": _utc_to_local(last_query) if last_query else "—",
             })
     total   = len(users)

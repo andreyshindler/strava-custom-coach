@@ -92,6 +92,7 @@
         <th>Weight</th>
         <th>Notify</th>
         <th>Queries</th>
+        <th>Total Cost</th>
         <th>Last Active</th>
         <th>Quota</th>
       </tr>
@@ -115,6 +116,7 @@
           {% else %}<span class="dot red"></span>Off{% endif %}
         </td>
         <td>{{ u.queries }}</td>
+        <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--orange)">${{ "%.4f"|format(u.total_cost) }}</td>
         <td class="muted" style="font-size:11px;font-family:'DM Mono',monospace">{{ u.last_query }}</td>
         <td>
           {% if not u.strava and u.allowance is none %}
