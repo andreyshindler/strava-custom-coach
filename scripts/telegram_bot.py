@@ -1722,17 +1722,27 @@ def cmd_admin(chat_id: str, args: list) -> str:
         for udir in sorted(users_dir.iterdir()):
             if not udir.is_dir():
                 continue
-            # Resolve name
-            name = udir.name
-            if (udir / "tokens.json").exists():
+            # Pending — no Strava auth yet
+            if not (udir / "tokens.json").exists():
+                cfg_name = udir.name
                 try:
-                    t = json.loads((udir / "tokens.json").read_text())
-                    a = t.get("athlete", {})
-                    sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
-                    if sn:
-                        name = sn
+                    cfg_name = json.loads((udir / "config.json").read_text()).get("name", udir.name)
                 except Exception:
                     pass
+                rows.append(f"⏳ *{cfg_name}*\n   `{udir.name}` — pending Strava authorization")
+                continue
+
+            # Resolve Strava name
+            name = udir.name
+            try:
+                t = json.loads((udir / "tokens.json").read_text())
+                a = t.get("athlete", {})
+                sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+                if sn:
+                    name = sn
+            except Exception:
+                pass
+
             q         = get_demo_quota(udir)
             allowance = q.get("allowance_usd")
             spent     = q.get("spent_usd", 0.0)
@@ -2035,6 +2045,16 @@ def handle_message(token, message):
         _rate_cmd = text.lstrip("/").split()[0].lower().split("@")[0]
     else:
         _rate_cmd = "_chat"
+
+    # ── Block non-free commands until Strava is authorized ────────────────────
+    _cmd_group = CMD_GROUPS.get(_rate_cmd, "ai_and_strava")
+    if _cmd_group != "free" and not (_UDIR / "tokens.json").exists():
+        send_message(token, chat_id,
+            "⛔ *Strava not connected yet.*\n\n"
+            "Please complete the Strava authorization first.\n"
+            "Contact the admin if you need the link again."
+        )
+        return
 
     # ── Demo quota check (AI commands only) ───────────────────────────────────
     _ai_group = CMD_GROUPS.get(_rate_cmd, "free")
