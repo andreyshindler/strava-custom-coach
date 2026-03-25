@@ -2338,11 +2338,12 @@ def handle_message(token, message):
 
     # ── Onboarding: no tokens yet → run setup wizard ──────────────────────────
     if not (_UDIR / "tokens.json").exists():
-        # Admin can use /admin commands and respond to pending confirmations without Strava
         _raw_cmd = text.lstrip("/").split()[0].lower().split("@")[0] if text.startswith("/") else ""
         _has_pending_confirm = (CONFIG_DIR / f"_delete_confirm_{chat_id}.json").exists()
         _has_quota_pending   = (CONFIG_DIR / f"_quota_pending_{chat_id}.json").exists()
-        if (_raw_cmd == "admin" or _has_pending_confirm or _has_quota_pending) and _is_admin(chat_id):
+        _is_free_cmd = CMD_GROUPS.get(_raw_cmd, "ai_and_strava") == "free"
+        # Free commands work for everyone; admin pending replies also bypass onboarding
+        if _is_free_cmd or ((_has_pending_confirm or _has_quota_pending) and _is_admin(chat_id)):
             pass  # fall through to command dispatch
         else:
             handle_onboarding(token, chat_id, text, _UDIR)
