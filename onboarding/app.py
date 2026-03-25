@@ -501,13 +501,9 @@ def tg_callback():
         # Notify admin
         if admin_id:
             _tg_send(admin_id,
-                f"🆕 *New user registered!*\n\n"
-                f"👤 Name: *{name or athlete_name}*\n"
-                f"🆔 Chat ID: `{chat_id}`\n"
-                f"⚖️ Weight: {weight_kg} kg\n"
-                f"⚡ FTP: {ftp} W\n\n"
-                f"Grant demo access:\n"
-                f"`/admin quota {chat_id} 1.00`"
+                f"🔔 *New user quota alert*\n\n"
+                f"User *{athlete_name}* (`{chat_id}`) has been created\n\n"
+                f"Use `/admin quota {chat_id} <amount>` to top them up."
             )
 
     return render_template("success.html",
