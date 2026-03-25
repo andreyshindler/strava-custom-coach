@@ -135,6 +135,7 @@
         <th>Total Cost</th>
         <th>Last Active</th>
         <th>Quota</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -186,6 +187,12 @@
             <button class="quota-btn" type="submit">Set</button>
           </form>
           {% endif %}
+        </td>
+        <td>
+          <form method="POST" action="/admin/delete/{{ u.chat_id }}"
+                onsubmit="return confirm('Delete {{ u.name }}? This cannot be undone.')">
+            <button type="submit" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;font-family:'DM Mono',monospace">Delete</button>
+          </form>
         </td>
       </tr>
       {% endfor %}
