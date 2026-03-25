@@ -682,6 +682,7 @@ def _admin_user_picker(action: str) -> list:
 
 def handle_callback(token, callback_query):
     """Handle inline button presses."""
+    global _UDIR
     chat_id  = str(callback_query.get("message", {}).get("chat", {}).get("id", ""))
     data     = callback_query.get("data", "")
     query_id = callback_query.get("id", "")
@@ -696,7 +697,6 @@ def handle_callback(token, callback_query):
         udir = get_user_dir(chat_id)
         (udir / "training_plan.json").unlink(missing_ok=True)
         (udir / "plan_wizard_state.json").unlink(missing_ok=True)
-        global _UDIR
         _prev = _UDIR; _UDIR = udir
         try:
             persona = load_active_persona(udir / "config.json")
@@ -738,7 +738,6 @@ def handle_callback(token, callback_query):
             return
         with _wizard_lock(udir):
             # Temporarily set _UDIR for wizard helpers that rely on it
-            global _UDIR
             _prev_udir = _UDIR
             _UDIR = udir
             try:
