@@ -802,46 +802,6 @@ def history_user(chat_id: str):
     })
 
 
-@app.route("/admin/users")
-@require_admin
-def admin_users():
-    """HTML page — list all users with query stats."""
-    import sqlite3 as _sqlite3
-    users = []
-    if USERS_DIR.exists():
-        for d in sorted(USERS_DIR.iterdir()):
-            if not d.is_dir():
-                continue
-            tf = d / "tokens.json"
-            name = d.name
-            if tf.exists():
-                try:
-                    t = json.loads(tf.read_text())
-                    a = t.get("athlete", {})
-                    sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
-                    if sn:
-                        name = sn
-                except Exception:
-                    pass
-            db = d / "history.db"
-            queries, total_cost, last_query = 0, 0.0, None
-            if db.exists():
-                try:
-                    with _sqlite3.connect(db) as conn:
-                        row = conn.execute("SELECT COUNT(*), SUM(cost_usd), MAX(timestamp) FROM queries").fetchone()
-                        queries, total_cost, last_query = row[0], row[1] or 0.0, row[2]
-                except Exception:
-                    pass
-            users.append({
-                "chat_id":    d.name,
-                "name":       name,
-                "strava":     tf.exists(),
-                "queries":    queries,
-                "total_cost": round(total_cost, 4),
-                "last_query": _utc_to_local(last_query) if last_query else "—",
-            })
-    return render_template("history_users.html", users=users)
-
 
 @app.route("/admin/users/<chat_id>")
 @require_admin
