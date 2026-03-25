@@ -2123,9 +2123,9 @@ def handle_message(token, message):
         _quota_ok, _spent, _allowance = check_demo_quota(_UDIR)
         if not _quota_ok:
             send_message(token, chat_id,
-                f"🎟 *Demo limit reached*\n\n"
-                f"You've used ${_spent:.4f} of your ${_allowance:.2f} demo credit.\n\n"
-                f"Contact the admin to upgrade your account and unlock full access."
+                f"🎟 *You are out of demo allowance*\n\n"
+                f"Contact the admin to upgrade your account and unlock full access.\n"
+                f"[@SuperMariooo](https://t.me/SuperMariooo)"
             )
             # Notify admin
             admin_id = os.environ.get("ADMIN_CHAT_ID", "")
