@@ -1446,6 +1446,21 @@ def _wizard_send(token, chat_id, reply, state):
 
 def cmd_newplan(persona, token: str = "", chat_id: str = "") -> str:
     """Start a new plan creation wizard."""
+    # Block if user has no quota set or is over limit
+    quota_ok, _, allowance = check_demo_quota(_UDIR)
+    if allowance is not None and not quota_ok:
+        return (
+            "🎟 *You are out of demo allowance*\n\n"
+            "Contact the admin to upgrade your account and unlock full access.\n"
+            "[@SuperMariooo](https://t.me/SuperMariooo)"
+        )
+    if allowance == 0:
+        return (
+            "🎟 *No quota assigned yet*\n\n"
+            "Contact the admin to activate your account.\n"
+            "[@SuperMariooo](https://t.me/SuperMariooo)"
+        )
+
     state = {"step": "goal", "persona": persona["id"]}
     save_wizard(state)
     reply = (
