@@ -2086,8 +2086,13 @@ def handle_message(token, message):
 
     # ── Onboarding: no tokens yet → run setup wizard ──────────────────────────
     if not (_UDIR / "tokens.json").exists():
-        handle_onboarding(token, chat_id, text, _UDIR)
-        return
+        # Admin can still use /admin commands without Strava
+        _raw_cmd = text.lstrip("/").split()[0].lower().split("@")[0] if text.startswith("/") else ""
+        if _raw_cmd == "admin" and _is_admin(chat_id):
+            pass  # fall through to command dispatch
+        else:
+            handle_onboarding(token, chat_id, text, _UDIR)
+            return
 
     # Show typing indicator immediately
     send_typing(token, chat_id)
