@@ -100,7 +100,7 @@
     <tbody>
       {% for u in users %}
       <tr>
-        <td><a href="/admin/users/{{ u.chat_id }}" style="color:var(--text);text-decoration:none;font-weight:500;" onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color='var(--text)'">{{ u.name }}</a></td>
+        <td><a href="/admin/{{ u.chat_id }}" style="color:var(--text);text-decoration:none;font-weight:500;" onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color='var(--text)'">{{ u.name }}</a></td>
         <td><code>{{ u.chat_id }}</code></td>
         <td>
           {% if u.strava %}

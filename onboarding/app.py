@@ -803,7 +803,7 @@ def history_user(chat_id: str):
 
 
 
-@app.route("/admin/users/<chat_id>")
+@app.route("/admin/<chat_id>")
 @require_admin
 def admin_user_history(chat_id: str):
     """HTML page — query history for one user."""
