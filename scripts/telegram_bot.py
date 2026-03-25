@@ -481,6 +481,8 @@ CMD_GROUPS = {
 
     # local_only: reads local files only, no external API
     "plan":      "local_only",
+    "today":     "local_only",
+    "tomorrow":  "local_only",
     "planxco":   "local_only",
     "week":      "local_only",
     "nextweek":  "local_only",
@@ -912,7 +914,8 @@ def cmd_help(persona):
         f"  /voice — hear your coach speak 🔊\n"
         f"  /newplan — create a new training plan 🗓\n"
         f"  /deleteplan — delete current training plan 🗑\n"
-        f"  /plan — today's planned workout\n"
+        f"  /today — today's planned workout\n"
+        f"  /tomorrow — tomorrow's planned workout\n"
         f"  /planxco — today's XCO strength session 💪\n"
         f"  /week — this week's training plan\n"
         f"  /nextweek — next week's plan\n"
@@ -1054,7 +1057,32 @@ def cmd_plan_xco(persona):
     ), None
 
 
-def cmd_plan(persona):
+def _format_day_workout(day, label, persona):
+    """Format a single day's workout into a reply string. Returns (text, voice_text)."""
+    w     = day["name"]
+    d     = day["description"]
+    t     = day["tss"]
+    dtype = day.get("type", "")
+    zone  = day.get("zone", 0)
+    if dtype == "gym":
+        z = "💪 Gym"; emoji = "🏋️"
+    elif zone and int(zone) > 0:
+        z = f"Zone {zone}"; emoji = "🚴"
+    elif day.get("workout") == "rest":
+        z = "Rest"; emoji = "😴"
+    else:
+        z = "Ride"; emoji = "🚴"
+    text = (
+        f"📋 *{label}* ({day['date']})\n\n"
+        f"{emoji} *{w}* — {z}\n"
+        f"Duration: {day.get('duration_min', '?')} min  |  TSS: {t}\n\n"
+        f"_{d}_\n\n"
+        f"— {persona['name']}"
+    )
+    return text, d
+
+
+def cmd_today(persona):
     """Show today's planned workout from the saved training plan."""
     plan_file = _UDIR / "training_plan.json"
     if not plan_file.exists():
@@ -1062,7 +1090,7 @@ def cmd_plan(persona):
             f"📋 *No training plan active yet.*\n\n"
             f"Use /newplan to build one — I'll guide you step by step.\n\n"
             f"— {persona['name']}"
-        )
+        ), None
 
     plan  = load_plan_safe()
     today = datetime.today().strftime("%Y-%m-%d")
@@ -1070,33 +1098,30 @@ def cmd_plan(persona):
     for week in plan.get("weekly_plans", []):
         for day in week.get("days", []):
             if day.get("date") == today:
-                w = day["name"]
-                d = day["description"]
-                t = day["tss"]
-                dtype = day.get("type", "")
-                zone  = day.get("zone", 0)
-                if dtype == "gym":
-                    z = "💪 Gym"
-                    emoji = "🏋️"
-                elif zone and int(zone) > 0:
-                    z = f"Zone {zone}"
-                    emoji = "🚴"
-                elif day.get("workout") == "rest":
-                    z = "Rest"
-                    emoji = "😴"
-                else:
-                    z = "Ride"
-                    emoji = "🚴"
-                text = (
-                    f"📋 *Today's Workout* ({today})\n\n"
-                    f"{emoji} *{w}* — {z}\n"
-                    f"Duration: {day.get('duration_min', '?')} min  |  TSS: {t}\n\n"
-                    f"_{d}_\n\n"
-                    f"— {persona['name']}"
-                )
-                return text, d
+                return _format_day_workout(day, "Today's Workout", persona)
 
     return f"No workout scheduled for today ({today}) in your current plan.", None
+
+
+def cmd_tomorrow(persona):
+    """Show tomorrow's planned workout from the saved training plan."""
+    plan_file = _UDIR / "training_plan.json"
+    if not plan_file.exists():
+        return (
+            f"📋 *No training plan active yet.*\n\n"
+            f"Use /newplan to build one — I'll guide you step by step.\n\n"
+            f"— {persona['name']}"
+        ), None
+
+    plan     = load_plan_safe()
+    tomorrow = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+
+    for week in plan.get("weekly_plans", []):
+        for day in week.get("days", []):
+            if day.get("date") == tomorrow:
+                return _format_day_workout(day, "Tomorrow's Workout", persona)
+
+    return f"No workout scheduled for tomorrow ({tomorrow}) in your current plan.", None
 
 
 def cmd_week(persona):
@@ -1738,7 +1763,7 @@ def generate_plan_from_wizard(state, persona):
                 icon = "💪" if day.get("type") == "gym" else "🚴"
                 lines.append(f"  {day['day'][:3]}: {icon} {day['name']}")
 
-        lines.append(f"\nUse /plan for today's session and /week for the full week.")
+        lines.append(f"\nUse /today for today's session and /week for the full week.")
         lines.append(f"\n— {persona['name']}")
         return "\n".join(lines)
 
@@ -2710,11 +2735,14 @@ def handle_message(token, message):
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
     elif cmd == "voice":
         reply = cmd_voice(persona, chat_id, token)
-    elif cmd == "plan":
+    elif cmd in ("plan", "today"):
         if args and args[0].lower() == "xco":
             result = cmd_plan_xco(persona)
         else:
-            result = cmd_plan(persona)
+            result = cmd_today(persona)
+        reply, voice_text = result if isinstance(result, tuple) else (result, None)
+    elif cmd == "tomorrow":
+        result = cmd_tomorrow(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
     elif cmd == "planxco":
         result = cmd_plan_xco(persona)
