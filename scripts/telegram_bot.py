@@ -1133,7 +1133,16 @@ def cmd_week(persona):
             lines.append(f"\n_{persona['header_quote']}_")
             return "\n".join(lines)
 
-    return "Couldn't find the current week in your plan. The plan may have ended."
+    # Check if plan hasn't started yet
+    first_week = plan.get("weekly_plans", [{}])[0]
+    first_date = (first_week.get("days") or [{}])[0].get("date", "")
+    if first_date and today < first_date:
+        return (
+            f"📅 *Your plan starts on {first_date}.*\n\n"
+            f"Nothing to show yet — come back when the plan begins!\n\n"
+            f"— {persona['name']}"
+        )
+    return f"📅 *Your plan has ended.*\n\nUse /newplan to create a new one.\n\n— {persona['name']}"
 
 
 def send_voice(token, chat_id, text, persona_id="nino"):
