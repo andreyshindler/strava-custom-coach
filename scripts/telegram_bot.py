@@ -1461,6 +1461,23 @@ def clear_wizard():
     if f.exists():
         f.unlink()
 
+def _realistic_ftp_gain(ftp: int, weeks: int) -> str:
+    """Return a realistic FTP gain range string based on current FTP and plan duration."""
+    # Training level proxy from FTP
+    if ftp < 200:
+        level, lo_pct, hi_pct = "beginner", 0.05, 0.08        # 5–8% per 8 weeks
+    elif ftp < 280:
+        level, lo_pct, hi_pct = "intermediate", 0.02, 0.04    # 2–4% per 8 weeks
+    else:
+        level, lo_pct, hi_pct = "advanced", 0.01, 0.02        # 1–2% per 8 weeks
+
+    # Scale percentages proportionally to duration (baseline = 8 weeks)
+    scale = weeks / 8.0
+    lo = max(1, round(ftp * lo_pct * scale))
+    hi = max(2, round(ftp * hi_pct * scale))
+    return f"+{lo}–{hi}W ({level}, {weeks} weeks)"
+
+
 def _wizard_send(token, chat_id, reply, state):
     """Send a wizard step reply — buttons for discrete steps, plain text for open inputs."""
     if reply is None:
@@ -1620,7 +1637,7 @@ def handle_wizard(state, text, persona):
                 f"✅ Duration: *{weeks} weeks*\n\n"
                 f"*STEP 4: Target FTP*\n\n"
                 f"Current FTP: *{ftp}W*\n"
-                f"Realistic gain in {weeks} weeks: +10 to +30W\n\n"
+                f"Realistic gain: {_realistic_ftp_gain(ftp, weeks)}\n\n"
                 f"What FTP do you want to reach?\n"
                 f"_(reply with target watts, e.g. {ftp+20})_"
             ), False
