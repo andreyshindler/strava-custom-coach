@@ -1982,30 +1982,12 @@ def cmd_admin(chat_id: str, args: list) -> str:
             except Exception:
                 pass
 
-        if pending.get("target_id") == target_id:
-            # Second call — confirmed, proceed with deletion
-            confirm_file.unlink(missing_ok=True)
-            token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
-            if token:
-                try:
-                    send_message(token, target_id,
-                        "⛔ *Your account has been removed.*\n\n"
-                        "Your data has been deleted by the admin.\n"
-                        "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info."
-                    )
-                except Exception:
-                    pass
-            import shutil
-            shutil.rmtree(target_dir, ignore_errors=True)
-            return f"🗑️ *{target_name}* (`{target_id}`) has been deleted."
-        else:
-            # First call — ask for confirmation
-            confirm_file.write_text(json.dumps({"target_id": target_id}))
-            return (
-                f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?\n\n"
-                f"Run the same command again to confirm:\n"
-                f"`/admin delete {target_id}`"
-            )
+        # Store pending confirmation and ask yes/no
+        confirm_file.write_text(json.dumps({"target_id": target_id, "target_name": target_name}))
+        return (
+            f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?\n\n"
+            f"Reply *yes* to confirm or *no* to cancel."
+        )
 
     return f"Unknown admin sub-command `{sub}`. Try `/admin` for help."
 
@@ -2207,6 +2189,36 @@ def handle_message(token, message):
             return
 
     persona = load_active_persona(_UDIR / "config.json")
+
+    # ── Admin delete confirmation ─────────────────────────────────────────────
+    _admin_del_confirm = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
+    if _admin_del_confirm.exists() and not text.startswith("/"):
+        pending = {}
+        try:
+            pending = json.loads(_admin_del_confirm.read_text())
+        except Exception:
+            pass
+        _admin_del_confirm.unlink(missing_ok=True)
+        if text.strip().lower() in ("yes", "y") and pending.get("target_id"):
+            target_id   = pending["target_id"]
+            target_name = pending.get("target_name", target_id)
+            target_dir  = CONFIG_DIR / "users" / target_id
+            bot_token   = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+            if bot_token:
+                try:
+                    send_message(bot_token, target_id,
+                        "⛔ *Your account has been removed.*\n\n"
+                        "Your data has been deleted by the admin.\n"
+                        "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info."
+                    )
+                except Exception:
+                    pass
+            import shutil
+            shutil.rmtree(target_dir, ignore_errors=True)
+            send_message(token, chat_id, f"🗑️ *{target_name}* (`{target_id}`) has been deleted.")
+        else:
+            send_message(token, chat_id, "👍 Deletion cancelled.")
+        return
 
     # ── Leave confirmation — must run before quota/auth checks ────────────────
     if _leave_confirm_file().exists() and not text.startswith("/"):
