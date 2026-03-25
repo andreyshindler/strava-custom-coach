@@ -1858,6 +1858,26 @@ def cmd_admin(chat_id: str, args: list) -> str:
 
         target_dir.mkdir(parents=True, exist_ok=True)
         set_demo_allowance(target_dir, new_allowance)
+
+        # Notify the user
+        token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+        if token:
+            if new_allowance is None or new_allowance > 0:
+                user_msg = (
+                    "✅ *Your account has been activated!*\n\n"
+                    "You now have access to your AI coach.\n"
+                    "Ask me anything or use /help to see what I can do."
+                )
+            else:
+                user_msg = (
+                    "⛔ *Your demo access has been paused.*\n\n"
+                    "Contact [@SuperMariooo](https://t.me/SuperMariooo) to top up your account."
+                )
+            try:
+                send_message(token, target_id, user_msg)
+            except Exception:
+                pass
+
         if new_allowance is None:
             return f"✅ User `{target_id}` quota removed — unlimited access."
         return f"✅ User `{target_id}` demo allowance set to ${new_allowance:.2f}."
