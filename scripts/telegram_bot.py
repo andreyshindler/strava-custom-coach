@@ -181,7 +181,7 @@ def log_query(user_dir: Path, user_id: str, user_name: str,
     except Exception as e:
         log.warning(f"[history] Failed to log query for {user_id}: {e}")
 
-def cmd_notify(user_dir: Path, args: list) -> str:
+def cmd_notify(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str:
     """Toggle or show automatic ride notification setting."""
     cfg_file = user_dir / "config.json"
     cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
@@ -189,11 +189,18 @@ def cmd_notify(user_dir: Path, args: list) -> str:
 
     if not args:
         status = "🟢 ON" if current else "🔴 OFF"
-        return (
-            f"*Ride notifications:* {status}\n\n"
-            f"I'll {'automatically send you a summary when a new ride appears on Strava' if current else 'stay quiet — use /ride to check manually'}.\n\n"
-            f"Toggle with `/notify on` or `/notify off`"
-        )
+        if token and chat_id:
+            tg_api_json(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       f"*Ride notifications:* {status}\n\nI'll {'automatically send you a summary after every ride' if current else 'stay quiet — use /ride to check manually'}.",
+                "parse_mode": "Markdown",
+                "reply_markup": {"inline_keyboard": [[
+                    {"text": "🟢 Turn ON",  "callback_data": "notify_on"},
+                    {"text": "🔴 Turn OFF", "callback_data": "notify_off"},
+                ]]},
+            })
+            return None
+        return f"*Ride notifications:* {status}\n\nToggle with `/notify on` or `/notify off`"
 
     arg = args[0].lower()
     if arg == "on":
@@ -678,6 +685,13 @@ def handle_callback(token, callback_query):
 
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
+
+    if data in ("notify_on", "notify_off"):
+        udir = get_user_dir(chat_id)
+        reply = cmd_notify(udir, [data[len("notify_"):]])
+        if reply:
+            send_message(token, chat_id, reply)
+        return
 
     if data in ("admin_pick_quota", "admin_pick_delete"):
         if not _is_admin(chat_id):
@@ -2545,7 +2559,7 @@ def handle_message(token, message):
     elif cmd == "quota":
         reply = cmd_quota(_UDIR)
     elif cmd == "notify":
-        reply = cmd_notify(_UDIR, args)
+        reply = cmd_notify(_UDIR, args, token=token, chat_id=chat_id)
     elif cmd == "leave":
         reply = cmd_leave()
     elif cmd == "help":
