@@ -1720,19 +1720,36 @@ def cmd_admin(chat_id: str, args: list) -> str:
             return "No users directory found."
         rows = []
         for udir in sorted(users_dir.iterdir()):
-            f = udir / "demo_quota.json"
-            if f.exists():
+            if not udir.is_dir():
+                continue
+            # Resolve name
+            name = udir.name
+            if (udir / "tokens.json").exists():
                 try:
-                    q = json.loads(f.read_text())
-                    allowance = q.get("allowance_usd")
-                    spent     = q.get("spent_usd", 0.0)
-                    if allowance is None:
-                        rows.append(f"`{udir.name}` — unlimited (spent ${spent:.4f})")
-                    else:
-                        rows.append(f"`{udir.name}` — ${spent:.4f} / ${allowance:.2f}")
+                    t = json.loads((udir / "tokens.json").read_text())
+                    a = t.get("athlete", {})
+                    sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+                    if sn:
+                        name = sn
                 except Exception:
                     pass
-        return ("*Users with quotas:*\n" + "\n".join(rows)) if rows else "No quotas set."
+            q         = get_demo_quota(udir)
+            allowance = q.get("allowance_usd")
+            spent     = q.get("spent_usd", 0.0)
+            if allowance is None:
+                rows.append(f"♾️ *{name}*\n   `{udir.name}` — unlimited (${spent:.4f} spent)")
+            else:
+                pct       = (spent / allowance * 100) if allowance > 0 else 100
+                bar       = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
+                remaining = max(0.0, allowance - spent)
+                icon      = "🔴" if spent >= allowance else ("🟡" if pct >= 80 else "🟢")
+                rows.append(
+                    f"{icon} *{name}*\n"
+                    f"   `{udir.name}`\n"
+                    f"   {bar} {pct:.0f}%\n"
+                    f"   ${spent:.4f} / ${allowance:.2f}  (${remaining:.4f} left)"
+                )
+        return ("*All users — quotas:*\n\n" + "\n\n".join(rows)) if rows else "No users found."
 
     if sub == "quota":
         if len(args) < 2:
