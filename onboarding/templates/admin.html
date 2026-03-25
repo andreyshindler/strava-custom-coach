@@ -114,6 +114,7 @@
       <option value="month">Active this month</option>
       <option value="never">Never active</option>
     </select>
+    <button class="quota-btn" onclick="clearFilters()" style="background:var(--card);border:1px solid var(--border);color:var(--muted)">Clear</button>
     <span class="filter-count" id="filterCount"></span>
   </div>
   <table>
@@ -242,6 +243,12 @@ function applyFilters() {
     if (show) visible++;
   });
   document.getElementById('filterCount').textContent = `${visible} of ${rows.length} users`;
+}
+
+function clearFilters() {
+  FILTER_IDS.forEach(id => { const el = document.getElementById(id); el.value = ''; });
+  localStorage.removeItem('adminFilters');
+  applyFilters();
 }
 
 restoreFilters();
