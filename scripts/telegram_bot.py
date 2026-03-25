@@ -686,6 +686,44 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data.startswith("wizard_"):
+        udir = get_user_dir(chat_id)
+        # Map callback data to equivalent text input
+        mapping = {
+            "wizard_goal_1": "1", "wizard_goal_2": "2", "wizard_goal_3": "3",
+            "wizard_goal_4": "4", "wizard_goal_5": "5",
+            "wizard_xco_yes": "y", "wizard_xco_no": "n",
+            "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
+        }
+        if data.startswith("wizard_weeks_"):
+            equivalent = data[len("wizard_weeks_"):]
+        else:
+            equivalent = mapping.get(data)
+        if not equivalent:
+            return
+        with _wizard_lock(udir):
+            # Temporarily set _UDIR for wizard helpers that rely on it
+            global _UDIR
+            _prev_udir = _UDIR
+            _UDIR = udir
+            try:
+                wizard = load_wizard()
+                if not wizard:
+                    send_message(token, chat_id, "No active wizard. Use /newplan to start.")
+                    return
+                persona = load_active_persona(udir / "config.json")
+                reply, done = handle_wizard(wizard, equivalent, persona)
+                if done:
+                    clear_wizard()
+                    if reply:
+                        send_message(token, chat_id, reply)
+                else:
+                    current_state = load_wizard()
+                    _wizard_send(token, chat_id, reply, current_state)
+            finally:
+                _UDIR = _prev_udir
+        return
+
     if data.startswith("coach_"):
         new_id = data[len("coach_"):]
         udir = get_user_dir(chat_id)
@@ -1358,19 +1396,69 @@ def clear_wizard():
     if f.exists():
         f.unlink()
 
-def cmd_newplan(persona):
+def _wizard_send(token, chat_id, reply, state):
+    """Send a wizard step reply — buttons for discrete steps, plain text for open inputs."""
+    if reply is None:
+        return
+    step = state.get("step") if isinstance(state, dict) else None
+    if step == "goal":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [
+                [{"text": "1️⃣ Improve FTP",      "callback_data": "wizard_goal_1"}],
+                [{"text": "2️⃣ Event prep",        "callback_data": "wizard_goal_2"}],
+                [{"text": "3️⃣ Distance target",   "callback_data": "wizard_goal_3"}],
+                [{"text": "4️⃣ Weight loss",       "callback_data": "wizard_goal_4"}],
+                [{"text": "5️⃣ General fitness",   "callback_data": "wizard_goal_5"}],
+            ]},
+        })
+    elif step == "weeks":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [
+                [{"text": "4 weeks",  "callback_data": "wizard_weeks_4"},
+                 {"text": "8 weeks",  "callback_data": "wizard_weeks_8"}],
+                [{"text": "12 weeks", "callback_data": "wizard_weeks_12"},
+                 {"text": "16 weeks", "callback_data": "wizard_weeks_16"}],
+                [{"text": "20 weeks", "callback_data": "wizard_weeks_20"},
+                 {"text": "24 weeks", "callback_data": "wizard_weeks_24"}],
+            ]},
+        })
+    elif step == "xco":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes", "callback_data": "wizard_xco_yes"},
+                {"text": "❌ No",  "callback_data": "wizard_xco_no"},
+            ]]},
+        })
+    elif step == "confirm":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, build it!", "callback_data": "wizard_confirm_yes"},
+                {"text": "❌ Cancel",         "callback_data": "wizard_confirm_no"},
+            ]]},
+        })
+    else:
+        send_message(token, chat_id, reply)
+
+
+def cmd_newplan(persona, token: str = "", chat_id: str = "") -> str:
     """Start a new plan creation wizard."""
-    save_wizard({"step": "goal", "persona": persona["id"]})
-    return (
+    state = {"step": "goal", "persona": persona["id"]}
+    save_wizard(state)
+    reply = (
         f"🗓 *New Training Plan — {persona['name']}*\n\n"
         f"Let's build your plan step by step.\n\n"
-        f"*STEP 1: What is your primary goal?*\n\n"
-        f"1️⃣ Improve FTP — get faster, raise your power threshold\n"
-        f"2️⃣ Event prep — train toward a specific race or event\n"
-        f"3️⃣ Distance target — build weekly volume\n"
-        f"4️⃣ Weight loss — more Zone 2, longer rides\n"
-        f"5️⃣ General fitness — balanced all-round plan\n\n"
-        f"Reply with a number *1–5*"
+        f"*STEP 1: What is your primary goal?*"
+    )
+    if token and chat_id:
+        _wizard_send(token, chat_id, reply, state)
+        return None
+    return reply + (
+        "\n\n1️⃣ Improve FTP\n2️⃣ Event prep\n3️⃣ Distance target\n"
+        "4️⃣ Weight loss\n5️⃣ General fitness\n\nReply with a number *1–5*"
     )
 
 def handle_wizard(state, text, persona):
@@ -2535,8 +2623,11 @@ def handle_message(token, message):
             reply, done = handle_wizard(wizard, text, persona)
             if done:
                 clear_wizard()
-            if reply is not None:
-                send_message(token, chat_id, reply)
+                if reply is not None:
+                    send_message(token, chat_id, reply)
+            else:
+                current_state = load_wizard()
+                _wizard_send(token, chat_id, reply, current_state)
             return
 
     # ── Check if awaiting delete confirmation ─────────────────────────────────
@@ -2607,7 +2698,7 @@ def handle_message(token, message):
     elif cmd == "newplan":
         with _wizard_lock(_UDIR):
             clear_wizard()
-            reply = cmd_newplan(persona)
+            reply = cmd_newplan(persona, token=token, chat_id=chat_id)
     elif cmd == "deleteplan":
         result = cmd_deleteplan(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
