@@ -146,7 +146,7 @@
           data-last="{{ u.last_query if u.last_query != '—' else '' }}">
         <td>
           <a href="/admin/{{ u.chat_id }}" style="color:var(--text);text-decoration:none;font-weight:500;" onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color='var(--text)'">{{ u.name }}</a>
-          {% if u.strava and u.allowance is none %}<span class="badge-new">NEW</span>{% endif %}
+          {% if u.strava and (u.allowance is none or u.allowance == 0) %}<span class="badge-new">NEW</span>{% endif %}
         </td>
         <td><code>{{ u.chat_id }}</code></td>
         <td>
