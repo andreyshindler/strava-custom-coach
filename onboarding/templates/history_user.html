@@ -32,6 +32,13 @@
   .pg-info { color: var(--muted); font-size: 12px; font-family: 'DM Mono', monospace; }
   .back { display: inline-block; margin-top: 32px; font-size: 13px; color: var(--muted); text-decoration: none; }
   .back:hover { color: var(--text); }
+  .filters { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+  .filter-input { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 14px; font-size: 13px; font-family: 'DM Sans', sans-serif; outline: none; }
+  .filter-input:focus { border-color: var(--orange); }
+  .filter-select { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 14px; font-size: 12px; font-family: 'DM Mono', monospace; outline: none; cursor: pointer; }
+  .filter-select:focus { border-color: var(--orange); }
+  .filter-count { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; margin-left: auto; }
+  tr.hidden { display: none; }
   .empty { text-align: center; padding: 60px; color: var(--muted); }
 </style>
 </head>
@@ -42,6 +49,15 @@
   <div class="sub">chat_id: {{ chat_id }} &nbsp;·&nbsp; {{ total }} total queries</div>
 
   {% if rows %}
+  <div class="filters">
+    <input class="filter-input" id="search" placeholder="Search query or response…" oninput="applyFilters()">
+    <select class="filter-select" id="filterAI" onchange="applyFilters()">
+      <option value="">All queries</option>
+      <option value="ai">AI only</option>
+      <option value="free">No AI</option>
+    </select>
+    <span class="filter-count" id="filterCount"></span>
+  </div>
   <table>
     <thead>
       <tr>
@@ -55,7 +71,8 @@
     </thead>
     <tbody>
       {% for r in rows %}
-      <tr>
+      <tr data-query="{{ r.query|lower }}" data-response="{{ r.response[:100]|lower }}"
+          data-ai="{{ 'ai' if r.tokens_used else 'free' }}">
         <td class="muted mono">{{ r.id }}</td>
         <td class="muted mono" style="white-space:nowrap">
           {%- if r.timestamp -%}
@@ -99,5 +116,22 @@
 
   <a href="/admin" class="back">← Back to admin panel</a>
 </div>
+<script>
+function applyFilters() {
+  const search = document.getElementById('search').value.toLowerCase();
+  const ai     = document.getElementById('filterAI').value;
+  const rows   = document.querySelectorAll('tbody tr');
+  let visible  = 0;
+  rows.forEach(row => {
+    const textMatch = !search || row.dataset.query.includes(search) || row.dataset.response.includes(search);
+    const aiMatch   = !ai || row.dataset.ai === ai;
+    const show = textMatch && aiMatch;
+    row.classList.toggle('hidden', !show);
+    if (show) visible++;
+  });
+  document.getElementById('filterCount').textContent = `${visible} of ${rows.length} shown`;
+}
+applyFilters();
+</script>
 </body>
 </html>
