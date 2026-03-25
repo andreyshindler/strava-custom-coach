@@ -401,6 +401,31 @@ def admin_set_quota(chat_id: str):
         except ValueError:
             return "Invalid amount", 400
     quota_file.write_text(json.dumps(quota, indent=2))
+
+    # Notify user via Telegram
+    bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+    if bot_token:
+        new_allowance = quota.get("allowance_usd")
+        if new_allowance is None:
+            msg = (
+                "✅ *Your account has been activated!*\n\n"
+                "You now have unlimited access to your AI coach.\n"
+                "Ask me anything or use /help to see what I can do."
+            )
+        elif new_allowance > 0:
+            msg = (
+                f"✅ *Your account has been activated!*\n\n"
+                f"You have ${new_allowance:.2f} of demo credit to explore your AI coach.\n"
+                f"Ask me anything or use /help to see what I can do."
+            )
+        else:
+            msg = None
+        if msg:
+            try:
+                _tg_send_msg(chat_id, msg, bot_token)
+            except Exception as e:
+                print(f"[admin] Failed to notify user {chat_id}: {e}")
+
     return redirect("/admin")
 
 
