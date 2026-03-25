@@ -93,11 +93,13 @@
           {% else %}<span class="dot red"></span>Off{% endif %}
         </td>
         <td>
-          {% if u.allowance is none %}
+          {% if not u.strava and u.allowance is none %}
+            <span style="color:var(--muted)">—</span>
+          {% elif u.allowance is none %}
             <span style="color:var(--muted)">Unlimited</span>
           {% elif u.pct is not none %}
             {% set bar_class = 'over' if u.pct >= 100 else ('warn' if u.pct >= 75 else 'ok') %}
-            {% set bar_w = 100 if u.pct > 100 else u.pct %}
+            {% set bar_w = 100 if u.pct > 100 else (4 if u.pct < 4 and u.pct > 0 else u.pct) %}
             <span class="bar-wrap"><span class="bar-fill {{ bar_class }}" style="width:{{ bar_w }}%"></span></span>
             <span class="pct-label">{{ u.pct }}% (${{ "%.2f"|format(u.spent) }} / ${{ "%.2f"|format(u.allowance) }})</span>
           {% else %}
