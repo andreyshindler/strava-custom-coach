@@ -419,7 +419,11 @@ def admin_set_quota(chat_id: str):
                 f"Ask me anything or use /help to see what I can do."
             )
         else:
-            msg = None
+            msg = (
+                "⛔ *Your demo access has been paused.*\n\n"
+                "Your credit has been set to $0.00.\n"
+                "Contact [@SuperMariooo](https://t.me/SuperMariooo) to top up your account."
+            )
         if msg:
             try:
                 _tg_send_msg(chat_id, msg, bot_token)
