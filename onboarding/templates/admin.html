@@ -123,7 +123,7 @@
       {% for u in users %}
       <tr data-name="{{ u.name|lower }}" data-id="{{ u.chat_id }}"
           data-strava="{{ 'connected' if u.strava else 'pending' }}"
-          data-quota="{{ 'over' if u.allowance and u.spent >= u.allowance else ('unlimited' if u.allowance is none else 'active') }}">
+          data-quota="{{ 'pending' if not u.strava else ('over' if u.allowance and u.spent >= u.allowance else ('unlimited' if u.allowance is none else 'active')) }}">
         <td><a href="/admin/{{ u.chat_id }}" style="color:var(--text);text-decoration:none;font-weight:500;" onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color='var(--text)'">{{ u.name }}</a></td>
         <td><code>{{ u.chat_id }}</code></td>
         <td>
