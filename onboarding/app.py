@@ -15,6 +15,7 @@ Security measures applied:
 import hashlib
 import hmac
 import json
+import sqlite3
 import os
 import re
 import secrets
@@ -643,6 +644,89 @@ def webhook_event():
         print(f"[webhook] Error processing activity {activity_id}: {e}")
 
     return Response("EVENT_RECEIVED", 200)
+
+
+# ── Admin history API ─────────────────────────────────────────────────────────
+
+def _history_db(chat_id: str) -> Path:
+    return USERS_DIR / chat_id / "history.db"
+
+
+def _query_history(chat_id: str, limit: int = 50, offset: int = 0) -> list[dict]:
+    db = _history_db(chat_id)
+    if not db.exists():
+        return []
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM queries ORDER BY id DESC LIMIT ? OFFSET ?",
+            (limit, offset)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@app.route("/admin/history")
+@require_admin
+def history_index():
+    """List all users with their query counts."""
+    if not USERS_DIR.exists():
+        return jsonify([])
+    result = []
+    for d in sorted(USERS_DIR.iterdir()):
+        if not d.is_dir():
+            continue
+        db = d / "history.db"
+        count = 0
+        total_cost = 0.0
+        last_query = None
+        if db.exists():
+            with sqlite3.connect(db) as conn:
+                row = conn.execute("SELECT COUNT(*), SUM(cost_usd), MAX(timestamp) FROM queries").fetchone()
+                count, total_cost, last_query = row[0], row[1] or 0.0, row[2]
+        # Resolve name
+        name = d.name
+        tf = d / "tokens.json"
+        if tf.exists():
+            try:
+                t = json.loads(tf.read_text())
+                a = t.get("athlete", {})
+                sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+                if sn:
+                    name = sn
+            except Exception:
+                pass
+        result.append({
+            "chat_id":    d.name,
+            "name":       name,
+            "queries":    count,
+            "total_cost": round(total_cost, 6),
+            "last_query": last_query,
+        })
+    return jsonify(result)
+
+
+@app.route("/admin/history/<chat_id>")
+@require_admin
+def history_user(chat_id: str):
+    """Return query history for one user. Supports ?limit=50&offset=0."""
+    limit  = min(int(request.args.get("limit",  50)), 500)
+    offset = int(request.args.get("offset", 0))
+    rows   = _query_history(chat_id, limit=limit, offset=offset)
+    if not rows and not _history_db(chat_id).exists():
+        return jsonify({"error": f"No history found for {chat_id}"}), 404
+    # Count total
+    db = _history_db(chat_id)
+    total = 0
+    if db.exists():
+        with sqlite3.connect(db) as conn:
+            total = conn.execute("SELECT COUNT(*) FROM queries").fetchone()[0]
+    return jsonify({
+        "chat_id": chat_id,
+        "total":   total,
+        "limit":   limit,
+        "offset":  offset,
+        "rows":    rows,
+    })
 
 
 if __name__ == "__main__":
