@@ -129,12 +129,14 @@
           {% else %}
             <span class="muted">Not set</span>
           {% endif %}
+          {% if u.strava %}
           <form class="quota-form" method="POST" action="/admin/quota/{{ u.chat_id }}">
             <input class="quota-input" type="text" name="allowance"
               placeholder="{{ u.allowance if u.allowance is not none else 'off' }}"
               title="Enter amount in USD, or 'off' for unlimited">
             <button class="quota-btn" type="submit">Set</button>
           </form>
+          {% endif %}
         </td>
       </tr>
       {% endfor %}
