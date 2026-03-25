@@ -1732,7 +1732,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
             "`/admin quotas` — list all users with quotas\n"
             "`/admin stats` — global usage summary\n"
             "`/admin users` — count users (all / strava / pending)\n"
-            "`/admin list` — list all users with names"
+            "`/admin list` — list all users with names\n"
+            "`/admin delete <id>` — delete a user (requires confirmation)"
         )
 
     sub = args[0].lower()
@@ -1949,6 +1950,62 @@ def cmd_admin(chat_id: str, args: list) -> str:
         if not rows:
             return "No users found."
         return "*All users:*\n\n" + "\n".join(rows)
+
+    if sub == "delete":
+        if len(args) < 2:
+            return "Usage: `/admin delete <user_chat_id>`"
+        target_id  = args[1]
+        target_dir = CONFIG_DIR / "users" / target_id
+        if not target_dir.exists():
+            return f"User `{target_id}` not found."
+
+        # Resolve name
+        target_name = target_id
+        try:
+            t = json.loads((target_dir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                target_name = sn
+        except Exception:
+            try:
+                target_name = json.loads((target_dir / "config.json").read_text()).get("name", target_id)
+            except Exception:
+                pass
+
+        # Check for pending confirmation
+        confirm_file = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
+        pending = {}
+        if confirm_file.exists():
+            try:
+                pending = json.loads(confirm_file.read_text())
+            except Exception:
+                pass
+
+        if pending.get("target_id") == target_id:
+            # Second call — confirmed, proceed with deletion
+            confirm_file.unlink(missing_ok=True)
+            token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+            if token:
+                try:
+                    send_message(token, target_id,
+                        "⛔ *Your account has been removed.*\n\n"
+                        "Your data has been deleted by the admin.\n"
+                        "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info."
+                    )
+                except Exception:
+                    pass
+            import shutil
+            shutil.rmtree(target_dir, ignore_errors=True)
+            return f"🗑️ *{target_name}* (`{target_id}`) has been deleted."
+        else:
+            # First call — ask for confirmation
+            confirm_file.write_text(json.dumps({"target_id": target_id}))
+            return (
+                f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?\n\n"
+                f"Run the same command again to confirm:\n"
+                f"`/admin delete {target_id}`"
+            )
 
     return f"Unknown admin sub-command `{sub}`. Try `/admin` for help."
 
