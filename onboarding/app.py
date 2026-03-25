@@ -383,6 +383,29 @@ def admin():
                            total_spent=round(total_spent_all, 4))
 
 
+@app.route("/admin/delete/<chat_id>", methods=["POST"])
+@require_admin
+def admin_delete_user(chat_id: str):
+    """Delete a user and all their data."""
+    import shutil
+    user_dir = USERS_DIR / chat_id
+    if not user_dir.exists():
+        return "User not found", 404
+    # Notify user before deleting
+    bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+    if bot_token:
+        try:
+            _tg_send_msg(chat_id,
+                "⛔ *Your account has been removed.*\n\n"
+                "Your data has been deleted by the admin.\n"
+                "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info.",
+                bot_token)
+        except Exception:
+            pass
+    shutil.rmtree(user_dir, ignore_errors=True)
+    return redirect("/admin")
+
+
 @app.route("/admin/quota/<chat_id>", methods=["POST"])
 @require_admin
 def admin_set_quota(chat_id: str):
