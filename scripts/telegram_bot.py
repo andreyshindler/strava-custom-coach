@@ -484,6 +484,7 @@ CMD_GROUPS = {
     "today":     "local_only",
     "tomorrow":  "local_only",
     "planxco":   "local_only",
+    "gym":       "local_only",
     "week":      "local_only",
     "nextweek":  "local_only",
     "nextmonth": "local_only",
@@ -916,7 +917,7 @@ def cmd_help(persona):
         f"  /deleteplan — delete current training plan 🗑\n"
         f"  /today — today's planned workout\n"
         f"  /tomorrow — tomorrow's planned workout\n"
-        f"  /planxco — today's XCO strength session 💪\n"
+        f"  /gym — today's XCO strength session 💪\n"
         f"  /week — this week's training plan\n"
         f"  /nextweek — next week's plan\n"
         f"  /nextmonth — next 4 weeks\n"
@@ -1046,13 +1047,29 @@ def cmd_plan_xco(persona):
                     f"{desc}\n\n"
                     f"— {persona['name']}"
                 )
-                # Voice: just first sentence of description
                 voice = desc.split('\n')[0]
                 return text, voice
 
+    # No gym today — find the next gym session
+    next_gym = None
+    for week in plan.get("weekly_plans", []):
+        for day in week.get("days", []):
+            if day.get("date", "") > today and day.get("type") == "gym":
+                next_gym = day
+                break
+        if next_gym:
+            break
+
+    if next_gym:
+        return (
+            f"😴 *No gym session today* ({today})\n\n"
+            f"Next gym session: *{next_gym['date']}* — {next_gym['name']}\n\n"
+            f"— {persona['name']}"
+        ), None
+
     return (
         f"😴 *No gym session today* ({today})\n\n"
-        f"Today is a bike or rest day. Use /plan for your cycling session.\n\n"
+        f"No upcoming gym sessions found in your plan.\n\n"
         f"— {persona['name']}"
     ), None
 
@@ -2744,7 +2761,7 @@ def handle_message(token, message):
     elif cmd == "tomorrow":
         result = cmd_tomorrow(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
-    elif cmd == "planxco":
+    elif cmd in ("planxco", "gym"):
         result = cmd_plan_xco(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
     elif cmd == "newplan":
