@@ -400,8 +400,8 @@ def admin_delete_user(chat_id: str):
                 "Your data has been deleted by the admin.\n"
                 "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info.",
                 bot_token)
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[admin_delete] Failed to notify user {chat_id}: {e}")
     shutil.rmtree(user_dir, ignore_errors=True)
     return redirect("/admin")
 
