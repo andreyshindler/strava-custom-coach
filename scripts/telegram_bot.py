@@ -1870,6 +1870,26 @@ def cmd_nextweek(persona):
             else:
                 return "You're on the last week of your plan! Use /newplan to create a new one."
 
+    # Plan hasn't started yet — show week 1 as "next week"
+    first_week = weeks[0] if weeks else None
+    if first_week:
+        first_date = (first_week.get("days") or [{}])[0].get("date", "")
+        if first_date and today < first_date:
+            ndays = first_week.get("days", [])
+            lines = [
+                f"📅 *Week 1 (starts {first_date}) — {first_week['phase'].upper()}*",
+                f"TSS target: {first_week['total_tss']}\n"
+            ]
+            for day in ndays:
+                if day["workout"] == "rest":
+                    lines.append(f"  {day['day'][:3]}: 😴 REST")
+                elif day.get("type") == "gym":
+                    lines.append(f"  {day['day'][:3]}: 🏋️ *{day['name']}* (TSS {day['tss']})")
+                else:
+                    lines.append(f"  {day['day'][:3]}: 🚴 *{day['name']}* (TSS {day['tss']})")
+            lines.append(f"\n_{persona['header_quote']}_")
+            return "\n".join(lines)
+
     return "Couldn't locate the current week in your plan."
 
 
