@@ -57,7 +57,15 @@
       {% for r in rows %}
       <tr>
         <td class="muted mono">{{ r.id }}</td>
-        <td class="muted mono" style="white-space:nowrap">{{ r.timestamp[:16].replace('T',' ') if r.timestamp else '—' }}</td>
+        <td class="muted mono" style="white-space:nowrap">
+          {%- if r.timestamp -%}
+            {%- set ts = r.timestamp[:16].replace('T',' ') -%}
+            {%- set h = r.timestamp[11:13]|int + 2 -%}
+            {%- set day_overflow = 1 if h >= 24 else 0 -%}
+            {%- set h = h % 24 -%}
+            {{ r.timestamp[:10] }} {{ '%02d'|format(h) }}:{{ r.timestamp[14:16] }}
+          {%- else -%}—{%- endif -%}
+        </td>
         <td class="query-text">{{ r.query }}</td>
         <td class="mono {% if not r.tokens_used %}muted{% endif %}">
           {% if r.tokens_used %}{{ r.tokens_used }}{% else %}<span class="no-ai">—</span>{% endif %}

@@ -370,7 +370,7 @@ def admin():
                 "spent":      spent,
                 "pct":        pct,
                 "queries":    queries,
-                "last_query": (last_query or "")[:16].replace("T", " ") if last_query else "—",
+                "last_query": _utc_to_local(last_query) if last_query else "—",
             })
     total   = len(users)
     strava  = sum(1 for u in users if u["strava"])
@@ -708,6 +708,16 @@ def webhook_event():
     return Response("EVENT_RECEIVED", 200)
 
 
+def _utc_to_local(ts: str, offset_hours: int = 2) -> str:
+    """Convert UTC ISO timestamp string to local time display (UTC+offset)."""
+    try:
+        h = int(ts[11:13]) + offset_hours
+        day = ts[:10]
+        return f"{day} {h % 24:02d}:{ts[14:16]}"
+    except Exception:
+        return ts[:16].replace("T", " ")
+
+
 # ── Admin history API ─────────────────────────────────────────────────────────
 
 def _history_db(chat_id: str) -> Path:
@@ -827,7 +837,7 @@ def admin_users():
                 "strava":     tf.exists(),
                 "queries":    queries,
                 "total_cost": round(total_cost, 4),
-                "last_query": (last_query or "")[:16].replace("T", " ") if last_query else "—",
+                "last_query": _utc_to_local(last_query) if last_query else "—",
             })
     return render_template("history_users.html", users=users)
 
