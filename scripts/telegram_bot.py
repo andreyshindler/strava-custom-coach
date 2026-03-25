@@ -1834,6 +1834,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
             _, spent, allowance = check_demo_quota(target_dir)
             if allowance is None:
                 return f"User `{target_id}`: unlimited (spent ${spent:.4f})"
+            if allowance == 0:
+                return f"🆕 User `{target_id}`: no quota set yet (spent ${spent:.4f})"
             remaining = max(0.0, allowance - spent)
             return (
                 f"User `{target_id}`:\n"
