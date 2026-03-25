@@ -711,6 +711,7 @@ def handle_callback(token, callback_query):
             "wizard_goal_4": "4", "wizard_goal_5": "5",
             "wizard_xco_yes": "y", "wizard_xco_no": "n",
             "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
+            "wizard_ftp_confirm_yes": "yes", "wizard_ftp_confirm_no": "no",
         }
         if data.startswith("wizard_weeks_"):
             equivalent = data[len("wizard_weeks_"):]
@@ -1483,6 +1484,15 @@ def _wizard_send(token, chat_id, reply, state):
     if reply is None:
         return
     step = state.get("step") if isinstance(state, dict) else None
+    if isinstance(state, dict) and state.get("ftp_confirm_pending"):
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, that's correct", "callback_data": "wizard_ftp_confirm_yes"},
+                {"text": "❌ No, re-enter",        "callback_data": "wizard_ftp_confirm_no"},
+            ]]},
+        })
+        return
     if step == "goal":
         tg_api_json(token, "sendMessage", {
             "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
@@ -1586,12 +1596,47 @@ def handle_wizard(state, text, persona):
 
     # ── FTP ───────────────────────────────────────────────────────────────────
     elif step == "ftp":
+        # Handling confirmation of high FTP
+        if state.get("ftp_confirm_pending"):
+            if text.strip().lower() in ("y", "yes"):
+                ftp = state["ftp_confirm_pending"]
+                del state["ftp_confirm_pending"]
+                state["ftp"] = ftp
+                state["step"] = "weeks"
+                save_wizard(state)
+                return (
+                    f"✅ FTP: *{ftp}W* confirmed.\n\n"
+                    f"*STEP 3: How many weeks?*\n\n"
+                    f"• 4 weeks — quick fitness boost\n"
+                    f"• 8 weeks — standard block _(recommended)_\n"
+                    f"• 12 weeks — full periodized build\n"
+                    f"• 16 weeks — serious event preparation\n"
+                    f"• 20–24 weeks — full season\n\n"
+                    f"Structure: 3 build weeks + 1 recovery week, repeating.\n\n"
+                    f"Reply with number of weeks *(4–24)*"
+                ), False
+            else:
+                del state["ftp_confirm_pending"]
+                save_wizard(state)
+                return "No problem — please re-enter your FTP in watts:", False
+
         try:
             ftp = int(text.strip())
         except ValueError:
             return "Please reply with a number (your FTP in watts, or 0 if unknown)", False
         if ftp == 0:
             ftp = 200
+
+        # Sanity check: above 400W is very unusual — confirm
+        if ftp > 400:
+            state["ftp_confirm_pending"] = ftp
+            save_wizard(state)
+            return (
+                f"⚠️ *{ftp}W is exceptionally high* — only world-class pros sustain that.\n\n"
+                f"Are you sure this is correct?",
+                False
+            )
+
         state["ftp"] = ftp
         state["step"] = "weeks"
         save_wizard(state)
@@ -2873,7 +2918,21 @@ def handle_message(token, message):
         if args and args[0].isdigit():
             reply = cmd_stats(persona, days=int(args[0]))
         else:
-            reply = cmd_stats(persona, days=7)
+            tg_api_json(token, "sendMessage", {
+                "chat_id": chat_id, "text": "📊 *Stats — select period:*",
+                "parse_mode": "Markdown",
+                "reply_markup": {"inline_keyboard": [
+                    [{"text":  "7 days", "callback_data": "stats_7"},
+                     {"text": "14 days", "callback_data": "stats_14"},
+                     {"text": "21 days", "callback_data": "stats_21"}],
+                    [{"text": "30 days", "callback_data": "stats_30"},
+                     {"text": "45 days", "callback_data": "stats_45"},
+                     {"text": "60 days", "callback_data": "stats_60"}],
+                    [{"text": "75 days", "callback_data": "stats_75"},
+                     {"text": "90 days", "callback_data": "stats_90"}],
+                ]},
+            })
+            reply = None
     elif cmd in ("stats30", "month"):
         reply = cmd_stats(persona, days=30)
     elif cmd == "trends":
