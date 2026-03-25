@@ -2110,6 +2110,16 @@ def handle_message(token, message):
 
     persona = load_active_persona(_UDIR / "config.json")
 
+    # ── Leave confirmation — must run before quota/auth checks ────────────────
+    if _leave_confirm_file().exists() and not text.startswith("/"):
+        if text.strip().lower() in ("yes", "y"):
+            reply = _do_leave(token, chat_id)
+            send_message(token, chat_id, reply)
+        else:
+            _leave_confirm_file().unlink()
+            send_message(token, chat_id, "👍 Cancelled. You're still here!")
+        return
+
     # ── Per-user rate limiting ────────────────────────────────────────────────
     # Determine the command key for quota check.
     # Plain-text messages (AI chat) use the "_chat" key.
@@ -2184,16 +2194,6 @@ def handle_message(token, message):
         else:
             _delete_confirm_file().unlink()
             send_message(token, chat_id, "👍 Deletion cancelled. Your plan is safe.")
-        return
-
-    # ── Check if awaiting leave confirmation ──────────────────────────────────
-    if _leave_confirm_file().exists() and not text.startswith("/"):
-        if text.strip().lower() in ("yes", "y"):
-            reply = _do_leave(token, chat_id)
-            send_message(token, chat_id, reply)
-        else:
-            _leave_confirm_file().unlink()
-            send_message(token, chat_id, "👍 Cancelled. You're still here!")
         return
 
     # ── Plain text — AI coaching chat ─────────────────────────────────────────
