@@ -11,17 +11,17 @@
   :root { --orange: #FC4C02; --black: #0a0a0a; --card: #18191c; --border: #2a2b2e; --text: #e8e8e8; --muted: #6b6d73; --green: #22c55e; --yellow: #eab308; --red: #ef4444; }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--black); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
-  .container { max-width: 1000px; margin: 0 auto; padding: 48px 24px; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
   .header { margin-bottom: 40px; }
   .logo { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--orange); margin-bottom: 8px; }
   h1 { font-family: 'Bebas Neue', sans-serif; font-size: 52px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  .stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 16px; margin-bottom: 40px; }
   .stat { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 40px; color: var(--orange); }
-  .stat-label { font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; }
+  .stat-value { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--orange); }
+  .stat-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; text-transform: uppercase; letter-spacing: 1px; margin-top: 4px; }
   table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); }
-  td { padding: 14px 16px; font-size: 13px; border-bottom: 1px solid rgba(42,43,46,0.5); vertical-align: middle; }
+  th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 14px 16px; text-align: left; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); white-space: nowrap; }
+  td { padding: 12px 16px; font-size: 13px; border-bottom: 1px solid rgba(42,43,46,0.5); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   tr:hover td { background: rgba(255,255,255,0.02); }
   .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -29,15 +29,22 @@
   .dot.yellow { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
   .dot.red    { background: var(--red); }
   code { font-family: 'DM Mono', monospace; background: rgba(252,76,2,0.08); color: var(--orange); padding: 2px 6px; border-radius: 4px; font-size: 11px; }
-  .bar-wrap { background: #2a2b2e; border-radius: 99px; height: 6px; width: 100px; display: inline-block; vertical-align: middle; }
+  .bar-wrap { background: #2a2b2e; border-radius: 99px; height: 6px; width: 80px; display: inline-block; vertical-align: middle; }
   .bar-fill  { height: 6px; border-radius: 99px; }
   .bar-fill.ok   { background: var(--green); }
   .bar-fill.warn { background: var(--yellow); }
   .bar-fill.over { background: var(--red); }
-  .pct-label { font-size: 11px; color: var(--muted); margin-left: 6px; font-family: 'DM Mono', monospace; }
+  .pct-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
+  .quota-form { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .quota-input { background: #111; border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 8px; font-size: 12px; font-family: 'DM Mono', monospace; width: 70px; }
+  .quota-input:focus { outline: none; border-color: var(--orange); }
+  .quota-btn { background: var(--orange); color: #fff; border: none; border-radius: 6px; padding: 4px 10px; font-size: 11px; cursor: pointer; font-family: 'DM Mono', monospace; letter-spacing: 0.5px; }
+  .quota-btn:hover { opacity: 0.85; }
+  .muted { color: var(--muted); }
   .empty { text-align: center; padding: 60px; color: var(--muted); font-size: 14px; }
   .back { display: inline-block; margin-top: 32px; font-size: 13px; color: var(--muted); text-decoration: none; }
   .back:hover { color: var(--text); }
+  @media (max-width: 900px) { .stats { grid-template-columns: repeat(3, 1fr); } }
 </style>
 </head>
 <body>
@@ -60,6 +67,18 @@
       <div class="stat-value">{{ pending }}</div>
       <div class="stat-label">Pending Auth</div>
     </div>
+    <div class="stat">
+      <div class="stat-value">{{ over }}</div>
+      <div class="stat-label">Over Limit</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">{{ users | sum(attribute='queries') }}</div>
+      <div class="stat-label">Total Queries</div>
+    </div>
+    <div class="stat">
+      <div class="stat-value">${{ "%.2f"|format(total_spent) }}</div>
+      <div class="stat-label">Total Spent</div>
+    </div>
   </div>
 
   {% if users %}
@@ -72,6 +91,8 @@
         <th>FTP</th>
         <th>Weight</th>
         <th>Notify</th>
+        <th>Queries</th>
+        <th>Last Active</th>
         <th>Quota</th>
       </tr>
     </thead>
@@ -93,19 +114,27 @@
           {% if u.notify %}<span class="dot green"></span>On
           {% else %}<span class="dot red"></span>Off{% endif %}
         </td>
+        <td>{{ u.queries }}</td>
+        <td class="muted" style="font-size:11px;font-family:'DM Mono',monospace">{{ u.last_query }}</td>
         <td>
           {% if not u.strava and u.allowance is none %}
-            <span style="color:var(--muted)">—</span>
+            <span class="muted">—</span>
           {% elif u.allowance is none %}
-            <span style="color:var(--muted)">Unlimited</span>
+            <span class="muted">Unlimited</span>
           {% elif u.pct is not none %}
             {% set bar_class = 'over' if u.pct >= 100 else ('warn' if u.pct >= 75 else 'ok') %}
             {% set bar_w = 100 if u.pct > 100 else (4 if u.pct < 4 and u.pct > 0 else u.pct) %}
             <span class="bar-wrap"><span class="bar-fill {{ bar_class }}" style="width:{{ bar_w }}%"></span></span>
-            <span class="pct-label">{{ u.pct }}% (${{ "%.2f"|format(u.spent) }} / ${{ "%.2f"|format(u.allowance) }})</span>
+            <span class="pct-label"> {{ u.pct }}% (${{ "%.2f"|format(u.spent) }} / ${{ "%.2f"|format(u.allowance) }})</span>
           {% else %}
-            <span style="color:var(--muted)">Not set</span>
+            <span class="muted">Not set</span>
           {% endif %}
+          <form class="quota-form" method="POST" action="/admin/quota/{{ u.chat_id }}">
+            <input class="quota-input" type="text" name="allowance"
+              placeholder="{{ u.allowance if u.allowance is not none else 'off' }}"
+              title="Enter amount in USD, or 'off' for unlimited">
+            <button class="quota-btn" type="submit">Set</button>
+          </form>
         </td>
       </tr>
       {% endfor %}

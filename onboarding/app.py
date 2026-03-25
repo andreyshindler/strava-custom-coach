@@ -323,8 +323,10 @@ def status(username):
 @app.route("/admin")
 @require_admin
 def admin():
+    import sqlite3 as _sqlite3
     users_dir = Path.home() / ".config" / "strava" / "users"
     users = []
+    total_spent_all = 0.0
     if users_dir.exists():
         for d in sorted(users_dir.iterdir()):
             if not d.is_dir():
@@ -332,33 +334,72 @@ def admin():
             cfg_file    = d / "config.json"
             tokens_file = d / "tokens.json"
             quota_file  = d / "demo_quota.json"
+            db_file     = d / "history.db"
 
             cfg    = json.loads(cfg_file.read_text())    if cfg_file.exists()    else {}
             tokens = json.loads(tokens_file.read_text()) if tokens_file.exists() else {}
             quota  = json.loads(quota_file.read_text())  if quota_file.exists()  else {}
 
-            athlete   = tokens.get("athlete", {})
+            athlete     = tokens.get("athlete", {})
             strava_name = f"{athlete.get('firstname','')} {athlete.get('lastname','')}".strip()
-            name      = strava_name or cfg.get("name", d.name)
-            allowance = quota.get("allowance_usd")
-            spent     = quota.get("spent_usd", 0.0)
-            pct       = round(spent / allowance * 100, 1) if allowance else None
+            name        = strava_name or cfg.get("name", d.name)
+            allowance   = quota.get("allowance_usd")
+            spent       = quota.get("spent_usd", 0.0)
+            pct         = round(spent / allowance * 100, 1) if allowance else None
+            total_spent_all += spent
+
+            # Query history stats
+            queries = 0
+            last_query = None
+            if db_file.exists():
+                try:
+                    with _sqlite3.connect(db_file) as conn:
+                        row = conn.execute("SELECT COUNT(*), MAX(timestamp) FROM queries").fetchone()
+                        queries, last_query = row[0], row[1]
+                except Exception:
+                    pass
 
             users.append({
-                "chat_id":   d.name,
-                "name":      name,
-                "strava":    tokens_file.exists(),
-                "ftp":       cfg.get("ftp", "—"),
-                "weight":    cfg.get("weight_kg", "—"),
-                "notify":    cfg.get("auto_notify", True),
-                "allowance": allowance,
-                "spent":     spent,
-                "pct":       pct,
+                "chat_id":    d.name,
+                "name":       name,
+                "strava":     tokens_file.exists(),
+                "ftp":        cfg.get("ftp", "—"),
+                "weight":     cfg.get("weight_kg", "—"),
+                "notify":     cfg.get("auto_notify", True),
+                "allowance":  allowance,
+                "spent":      spent,
+                "pct":        pct,
+                "queries":    queries,
+                "last_query": (last_query or "")[:16].replace("T", " ") if last_query else "—",
             })
     total   = len(users)
     strava  = sum(1 for u in users if u["strava"])
     pending = total - strava
-    return render_template("admin.html", users=users, total=total, strava=strava, pending=pending)
+    over    = sum(1 for u in users if u["allowance"] and u["spent"] >= u["allowance"])
+    return render_template("admin.html", users=users, total=total, strava=strava,
+                           pending=pending, over=over,
+                           total_spent=round(total_spent_all, 4))
+
+
+@app.route("/admin/quota/<chat_id>", methods=["POST"])
+@require_admin
+def admin_set_quota(chat_id: str):
+    """Set demo allowance for a user from the admin panel."""
+    raw = request.form.get("allowance", "").strip().lower()
+    user_dir = USERS_DIR / chat_id
+    if not user_dir.exists():
+        return "User not found", 404
+    quota_file = user_dir / "demo_quota.json"
+    quota = json.loads(quota_file.read_text()) if quota_file.exists() else {}
+    if raw in ("", "off", "unlimited"):
+        quota["allowance_usd"] = None
+    else:
+        try:
+            quota["allowance_usd"] = float(raw)
+        except ValueError:
+            return "Invalid amount", 400
+    quota_file.write_text(json.dumps(quota, indent=2))
+    return redirect("/admin")
 
 
 @app.route("/tg/callback")
