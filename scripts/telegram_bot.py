@@ -1959,14 +1959,25 @@ def _do_leave(token: str, chat_id: str):
         except Exception as e:
             log.warning(f"Strava deauth failed for {chat_id}: {e}")
 
-    # Get user name before deleting
-    cfg_file = _UDIR / "config.json"
+    # Get user name before deleting — prefer Strava full name
     user_name = chat_id
-    if cfg_file.exists():
+    tokens_file = _UDIR / "tokens.json"
+    if tokens_file.exists():
         try:
-            user_name = json.loads(cfg_file.read_text()).get("name", chat_id)
+            t = json.loads(tokens_file.read_text())
+            a = t.get("athlete", {})
+            strava_name = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if strava_name:
+                user_name = strava_name
         except Exception:
             pass
+    if user_name == chat_id:
+        cfg_file = _UDIR / "config.json"
+        if cfg_file.exists():
+            try:
+                user_name = json.loads(cfg_file.read_text()).get("name", chat_id)
+            except Exception:
+                pass
 
     # Delete all user data
     try:
