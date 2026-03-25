@@ -150,7 +150,7 @@
           {% if u.strava and u.allowance is not none and u.allowance == 0 %}<span class="badge-new">NEW</span>{% endif %}
         </td>
         <td><code>{{ u.chat_id }}</code></td>
-        <td>
+        <td style="white-space:nowrap">
           {% if u.strava %}
             <span class="dot green"></span>Connected
           {% else %}
