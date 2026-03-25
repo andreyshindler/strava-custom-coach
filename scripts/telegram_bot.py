@@ -1859,6 +1859,17 @@ def cmd_admin(chat_id: str, args: list) -> str:
         target_dir.mkdir(parents=True, exist_ok=True)
         set_demo_allowance(target_dir, new_allowance)
 
+        # Resolve display name
+        target_name = target_id
+        try:
+            t = json.loads((target_dir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                target_name = sn
+        except Exception:
+            pass
+
         # Notify the user
         token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         if token:
@@ -1879,8 +1890,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
                 pass
 
         if new_allowance is None:
-            return f"✅ User `{target_id}` quota removed — unlimited access."
-        return f"✅ User `{target_id}` demo allowance set to ${new_allowance:.2f}."
+            return f"✅ *{target_name}* (`{target_id}`) quota removed — unlimited access."
+        return f"✅ *{target_name}* (`{target_id}`) demo allowance set to ${new_allowance:.2f}."
 
     if sub == "users":
         users_dir = CONFIG_DIR / "users"
