@@ -653,6 +653,38 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data.startswith("admin_delete_yes_") or data == "admin_delete_no":
+        confirm_file = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
+        confirm_file.unlink(missing_ok=True)
+        if data == "admin_delete_no":
+            send_message(token, chat_id, "👍 Deletion cancelled.")
+            return
+        target_id = data[len("admin_delete_yes_"):]
+        target_dir = CONFIG_DIR / "users" / target_id
+        # Resolve name
+        target_name = target_id
+        try:
+            t = json.loads((target_dir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                target_name = sn
+        except Exception:
+            pass
+        # Notify user
+        try:
+            send_message(token, target_id,
+                "⛔ *Your account has been removed.*\n\n"
+                "Your data has been deleted by the admin.\n"
+                "Contact [@SuperMariooo](https://t.me/SuperMariooo) for more info."
+            )
+        except Exception:
+            pass
+        import shutil
+        shutil.rmtree(target_dir, ignore_errors=True)
+        send_message(token, chat_id, f"🗑️ *{target_name}* (`{target_id}`) has been deleted.")
+        return
+
     if data == "voice":
         udir = get_user_dir(chat_id)
         persona = load_active_persona(udir / "config.json")
@@ -1982,12 +2014,19 @@ def cmd_admin(chat_id: str, args: list) -> str:
             except Exception:
                 pass
 
-        # Store pending confirmation and ask yes/no
+        # Store pending confirmation and ask with inline buttons
         confirm_file.write_text(json.dumps({"target_id": target_id, "target_name": target_name}))
-        return (
-            f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?\n\n"
-            f"Reply *yes* to confirm or *no* to cancel."
-        )
+        token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+        tg_api_json(token, "sendMessage", {
+            "chat_id":    chat_id,
+            "text":       f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?",
+            "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, delete", "callback_data": f"admin_delete_yes_{target_id}"},
+                {"text": "❌ No, cancel",  "callback_data": "admin_delete_no"},
+            ]]},
+        })
+        return None
 
     return f"Unknown admin sub-command `{sub}`. Try `/admin` for help."
 
