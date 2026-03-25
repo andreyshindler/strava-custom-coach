@@ -689,6 +689,22 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data in ("newplan_replace_yes", "newplan_replace_no"):
+        if data == "newplan_replace_no":
+            send_message(token, chat_id, "👍 Your current plan is kept. Use /week to view it.")
+            return
+        udir = get_user_dir(chat_id)
+        (udir / "training_plan.json").unlink(missing_ok=True)
+        (udir / "plan_wizard_state.json").unlink(missing_ok=True)
+        global _UDIR
+        _prev = _UDIR; _UDIR = udir
+        try:
+            persona = load_active_persona(udir / "config.json")
+            cmd_newplan(persona, token=token, chat_id=chat_id)
+        finally:
+            _UDIR = _prev
+        return
+
     if data in ("deleteplan_confirm", "deleteplan_cancel"):
         udir = get_user_dir(chat_id)
         df = udir / "pending_delete.txt"
@@ -1559,6 +1575,31 @@ def cmd_newplan(persona, token: str = "", chat_id: str = "") -> str:
             "Contact the admin to activate your account.\n"
             "[@SuperMariooo](https://t.me/SuperMariooo)"
         )
+
+    # If an active plan exists and no override flag, ask for confirmation first
+    plan_file = _UDIR / "training_plan.json"
+    if plan_file.exists() and token and chat_id:
+        plan = load_plan_safe()
+        goal  = plan.get("goal", "unknown")
+        weeks = plan.get("weeks", "?")
+        start = plan.get("start_date", "?")
+        event = f" — {plan['event_name']}" if plan.get("event_name") else ""
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": (
+                f"⚠️ *You already have an active training plan.*\n\n"
+                f"  🎯 Goal: *{goal}{event}*\n"
+                f"  📅 {weeks} weeks, started {start}\n\n"
+                f"Creating a new plan will *delete your current one*.\n"
+                f"Are you sure?"
+            ),
+            "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, replace it", "callback_data": "newplan_replace_yes"},
+                {"text": "❌ No, keep it",     "callback_data": "newplan_replace_no"},
+            ]]},
+        })
+        return None
 
     state = {"step": "goal", "persona": persona["id"]}
     save_wizard(state)
