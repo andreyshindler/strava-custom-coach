@@ -686,6 +686,17 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data.startswith("coach_"):
+        new_id = data[len("coach_"):]
+        udir = get_user_dir(chat_id)
+        if new_id not in PERSONAS:
+            send_message(token, chat_id, "Unknown coach.")
+            return
+        save_active_persona(new_id, udir / "config.json")
+        p = PERSONAS[new_id]
+        send_message(token, chat_id, f"✅ *Coach switched to {p['name']}*\n\n{p['greeting']}")
+        return
+
     if data in ("notify_on", "notify_off"):
         udir = get_user_dir(chat_id)
         reply = cmd_notify(udir, [data[len("notify_"):]])
@@ -879,14 +890,25 @@ def cmd_help(persona):
     )
 
 
-def cmd_coach(args, persona):
+def cmd_coach(args, persona, token: str = "", chat_id: str = "") -> str:
     """Show current coach or switch to a new one."""
     if not args:
+        if token and chat_id:
+            buttons = []
+            for pid, p in PERSONAS.items():
+                label = f"✅ {p['name']}" if pid == persona["id"] else p["name"]
+                buttons.append([{"text": label, "callback_data": f"coach_{pid}"}])
+            tg_api_json(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       f"*Current coach:* {persona['name']}\n\nPick a coach:",
+                "parse_mode": "Markdown",
+                "reply_markup": {"inline_keyboard": buttons},
+            })
+            return None
         lines = [f"*Current coach:* {persona['name']}\n\n*Available coaches:*"]
         for pid, p in PERSONAS.items():
             marker = " ✅" if pid == persona["id"] else ""
             lines.append(f"  `{pid}` — {p['name']}{marker}\n  _{p['tagline']}_")
-        lines.append("\nSwitch with: `/coach nino` (or pogi / badger / cannibal)")
         return "\n".join(lines)
 
     new_id = args[0].lower()
@@ -2566,7 +2588,7 @@ def handle_message(token, message):
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":
-        reply = cmd_coach(args, persona)
+        reply = cmd_coach(args, persona, token=token, chat_id=chat_id)
         persona = load_active_persona(_UDIR / "config.json")
     elif cmd == "ride":
         result = cmd_ride(persona)
