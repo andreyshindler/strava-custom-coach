@@ -791,5 +791,88 @@ def history_user(chat_id: str):
     })
 
 
+@app.route("/admin/users")
+@require_admin
+def admin_users():
+    """HTML page — list all users with query stats."""
+    import sqlite3 as _sqlite3
+    users = []
+    if USERS_DIR.exists():
+        for d in sorted(USERS_DIR.iterdir()):
+            if not d.is_dir():
+                continue
+            tf = d / "tokens.json"
+            name = d.name
+            if tf.exists():
+                try:
+                    t = json.loads(tf.read_text())
+                    a = t.get("athlete", {})
+                    sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+                    if sn:
+                        name = sn
+                except Exception:
+                    pass
+            db = d / "history.db"
+            queries, total_cost, last_query = 0, 0.0, None
+            if db.exists():
+                try:
+                    with _sqlite3.connect(db) as conn:
+                        row = conn.execute("SELECT COUNT(*), SUM(cost_usd), MAX(timestamp) FROM queries").fetchone()
+                        queries, total_cost, last_query = row[0], row[1] or 0.0, row[2]
+                except Exception:
+                    pass
+            users.append({
+                "chat_id":    d.name,
+                "name":       name,
+                "strava":     tf.exists(),
+                "queries":    queries,
+                "total_cost": round(total_cost, 4),
+                "last_query": (last_query or "")[:16].replace("T", " ") if last_query else "—",
+            })
+    return render_template("history_users.html", users=users)
+
+
+@app.route("/admin/users/<chat_id>")
+@require_admin
+def admin_user_history(chat_id: str):
+    """HTML page — query history for one user."""
+    import sqlite3 as _sqlite3
+    limit  = min(int(request.args.get("limit", 50)), 500)
+    offset = int(request.args.get("offset", 0))
+
+    # Resolve name
+    name = chat_id
+    tf = USERS_DIR / chat_id / "tokens.json"
+    if tf.exists():
+        try:
+            t = json.loads(tf.read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                name = sn
+        except Exception:
+            pass
+
+    db = _history_db(chat_id)
+    rows, total = [], 0
+    if db.exists():
+        try:
+            with _sqlite3.connect(db) as conn:
+                conn.row_factory = _sqlite3.Row
+                total = conn.execute("SELECT COUNT(*) FROM queries").fetchone()[0]
+                raw = conn.execute(
+                    "SELECT * FROM queries ORDER BY id DESC LIMIT ? OFFSET ?",
+                    (limit, offset)
+                ).fetchall()
+                rows = [dict(r) for r in raw]
+        except Exception:
+            pass
+
+    return render_template("history_user.html",
+                           chat_id=chat_id, name=name,
+                           rows=rows, total=total,
+                           limit=limit, offset=offset)
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=False)

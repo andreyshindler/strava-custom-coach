@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ name }} — History</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root { --orange: #FC4C02; --black: #0a0a0a; --card: #18191c; --border: #2a2b2e; --text: #e8e8e8; --muted: #6b6d73; --green: #22c55e; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--black); color: var(--text); font-family: 'DM Sans', sans-serif; font-weight: 300; min-height: 100vh; }
+  .container { max-width: 1100px; margin: 0 auto; padding: 48px 24px; }
+  .logo { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 2px; color: var(--orange); margin-bottom: 8px; }
+  h1 { font-family: 'Bebas Neue', sans-serif; font-size: 48px; margin-bottom: 4px; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 32px; font-family: 'DM Mono', monospace; }
+  table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.02); white-space: nowrap; }
+  td { padding: 10px 16px; font-size: 12px; border-bottom: 1px solid rgba(42,43,46,0.5); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  .mono { font-family: 'DM Mono', monospace; }
+  .muted { color: var(--muted); }
+  .query-text { max-width: 240px; white-space: pre-wrap; word-break: break-word; }
+  .response-text { max-width: 360px; white-space: pre-wrap; word-break: break-word; color: var(--muted); font-size: 11px; }
+  .cost { color: var(--orange); font-family: 'DM Mono', monospace; }
+  .no-ai { color: var(--muted); font-size: 11px; }
+  .pagination { display: flex; gap: 12px; margin-top: 24px; align-items: center; }
+  .btn { background: var(--card); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 8px 16px; font-size: 12px; text-decoration: none; font-family: 'DM Mono', monospace; }
+  .btn:hover { border-color: var(--orange); color: var(--orange); }
+  .btn.disabled { opacity: 0.3; pointer-events: none; }
+  .pg-info { color: var(--muted); font-size: 12px; font-family: 'DM Mono', monospace; }
+  .back { display: inline-block; margin-top: 32px; font-size: 13px; color: var(--muted); text-decoration: none; }
+  .back:hover { color: var(--text); }
+  .empty { text-align: center; padding: 60px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="logo">ADMIN — USER HISTORY</div>
+  <h1>{{ name }}</h1>
+  <div class="sub">chat_id: {{ chat_id }} &nbsp;·&nbsp; {{ total }} total queries</div>
+
+  {% if rows %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Timestamp</th>
+        <th>Query</th>
+        <th>Tokens</th>
+        <th>Cost</th>
+        <th>Response</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="muted mono">{{ r.id }}</td>
+        <td class="muted mono" style="white-space:nowrap">{{ r.timestamp[:16].replace('T',' ') if r.timestamp else '—' }}</td>
+        <td class="query-text">{{ r.query }}</td>
+        <td class="mono {% if not r.tokens_used %}muted{% endif %}">
+          {% if r.tokens_used %}{{ r.tokens_used }}{% else %}<span class="no-ai">—</span>{% endif %}
+        </td>
+        <td>
+          {% if r.cost_usd %}<span class="cost">${{ "%.4f"|format(r.cost_usd) }}</span>
+          {% else %}<span class="no-ai">$0</span>{% endif %}
+        </td>
+        <td class="response-text">{{ r.response[:200] }}{% if r.response|length > 200 %}…{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <div class="pagination">
+    {% if offset > 0 %}
+      <a class="btn" href="/admin/users/{{ chat_id }}?limit={{ limit }}&offset={{ [offset - limit, 0]|max }}">← Newer</a>
+    {% else %}
+      <span class="btn disabled">← Newer</span>
+    {% endif %}
+    <span class="pg-info">{{ offset + 1 }}–{{ [offset + limit, total]|min }} of {{ total }}</span>
+    {% if offset + limit < total %}
+      <a class="btn" href="/admin/users/{{ chat_id }}?limit={{ limit }}&offset={{ offset + limit }}">Older →</a>
+    {% else %}
+      <span class="btn disabled">Older →</span>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty">No queries yet for this user.</div>
+  {% endif %}
+
+  <a href="/admin/users" class="back">← Back to users</a>
+</div>
+</body>
+</html>
