@@ -644,6 +644,32 @@ def extract_coaching_note(text):
     return paras[-1][:500] if paras else clean[:300]
 
 
+def _admin_user_picker(action: str) -> list:
+    """Return inline keyboard rows listing all users for a given action (pick_quota / pick_delete)."""
+    users_dir = CONFIG_DIR / "users"
+    rows = []
+    if not users_dir.exists():
+        return rows
+    for udir in sorted(users_dir.iterdir()):
+        if not udir.is_dir():
+            continue
+        uid = udir.name
+        name = uid
+        try:
+            t = json.loads((udir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                name = sn
+        except Exception:
+            try:
+                name = json.loads((udir / "config.json").read_text()).get("name", uid)
+            except Exception:
+                pass
+        rows.append([{"text": name, "callback_data": f"{action}_{uid}"}])
+    return rows
+
+
 def handle_callback(token, callback_query):
     """Handle inline button presses."""
     chat_id  = str(callback_query.get("message", {}).get("chat", {}).get("id", ""))
@@ -652,6 +678,77 @@ def handle_callback(token, callback_query):
 
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
+
+    if data in ("admin_pick_quota", "admin_pick_delete"):
+        if not _is_admin(chat_id):
+            return
+        action = "quota_pick" if data == "admin_pick_quota" else "delete_pick"
+        label  = "Set quota for:" if data == "admin_pick_quota" else "Delete user:"
+        rows   = _admin_user_picker(action)
+        if not rows:
+            send_message(token, chat_id, "No users found.")
+            return
+        tg_api_json(token, "sendMessage", {
+            "chat_id":    chat_id,
+            "text":       label,
+            "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": rows},
+        })
+        return
+
+    if data.startswith("delete_pick_"):
+        if not _is_admin(chat_id):
+            return
+        target_id  = data[len("delete_pick_"):]
+        target_dir = CONFIG_DIR / "users" / target_id
+        target_name = target_id
+        try:
+            t = json.loads((target_dir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                target_name = sn
+        except Exception:
+            pass
+        confirm_file = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
+        confirm_file.write_text(json.dumps({"target_id": target_id, "target_name": target_name}))
+        tg_api_json(token, "sendMessage", {
+            "chat_id":    chat_id,
+            "text":       f"⚠️ Are you sure you want to delete *{target_name}* (`{target_id}`)?",
+            "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, delete", "callback_data": f"admin_delete_yes_{target_id}"},
+                {"text": "❌ No, cancel",  "callback_data": "admin_delete_no"},
+            ]]},
+        })
+        return
+
+    if data.startswith("quota_pick_"):
+        if not _is_admin(chat_id):
+            return
+        target_id  = data[len("quota_pick_"):]
+        target_dir = CONFIG_DIR / "users" / target_id
+        target_name = target_id
+        try:
+            t = json.loads((target_dir / "tokens.json").read_text())
+            a = t.get("athlete", {})
+            sn = f"{a.get('firstname','')} {a.get('lastname','')}".strip()
+            if sn:
+                target_name = sn
+        except Exception:
+            pass
+        q        = get_demo_quota(target_dir)
+        current  = q.get("allowance_usd")
+        cur_str  = "unlimited" if current is None else f"${current:.2f}"
+        # Store pending quota target so next text message sets the amount
+        (CONFIG_DIR / f"_quota_pending_{chat_id}.json").write_text(
+            json.dumps({"target_id": target_id, "target_name": target_name})
+        )
+        send_message(token, chat_id,
+            f"💰 Set quota for *{target_name}* (current: {cur_str})\n\n"
+            f"Reply with the amount in USD (e.g. `2.50`), or `off` for unlimited."
+        )
+        return
 
     if data in ("admin_stats", "admin_users", "admin_quotas", "admin_list", "admin_web"):
         if not _is_admin(chat_id):
@@ -1774,16 +1871,20 @@ def cmd_admin(chat_id: str, args: list) -> str:
         token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         tg_api_json(token, "sendMessage", {
             "chat_id":    chat_id,
-            "text":       "*Admin panel:*\nTap a button or type a command with an ID.",
+            "text":       "*Admin panel:*",
             "parse_mode": "Markdown",
             "reply_markup": {"inline_keyboard": [
                 [
-                    {"text": "📊 Stats",  "callback_data": "admin_stats"},
-                    {"text": "👥 Users",  "callback_data": "admin_users"},
+                    {"text": "📊 Stats",     "callback_data": "admin_stats"},
+                    {"text": "👥 Users",     "callback_data": "admin_users"},
                 ],
                 [
-                    {"text": "📋 Quotas", "callback_data": "admin_quotas"},
-                    {"text": "📜 List",   "callback_data": "admin_list"},
+                    {"text": "📋 Quotas",   "callback_data": "admin_quotas"},
+                    {"text": "📜 List",     "callback_data": "admin_list"},
+                ],
+                [
+                    {"text": "💰 Set quota", "callback_data": "admin_pick_quota"},
+                    {"text": "🗑️ Delete",    "callback_data": "admin_pick_delete"},
                 ],
                 [
                     {"text": "🌐 Web panel", "callback_data": "admin_web"},
@@ -2226,7 +2327,8 @@ def handle_message(token, message):
         # Admin can use /admin commands and respond to pending confirmations without Strava
         _raw_cmd = text.lstrip("/").split()[0].lower().split("@")[0] if text.startswith("/") else ""
         _has_pending_confirm = (CONFIG_DIR / f"_delete_confirm_{chat_id}.json").exists()
-        if (_raw_cmd == "admin" or _has_pending_confirm) and _is_admin(chat_id):
+        _has_quota_pending   = (CONFIG_DIR / f"_quota_pending_{chat_id}.json").exists()
+        if (_raw_cmd == "admin" or _has_pending_confirm or _has_quota_pending) and _is_admin(chat_id):
             pass  # fall through to command dispatch
         else:
             handle_onboarding(token, chat_id, text, _UDIR)
@@ -2253,6 +2355,52 @@ def handle_message(token, message):
             return
 
     persona = load_active_persona(_UDIR / "config.json")
+
+    # ── Admin quota amount reply ──────────────────────────────────────────────
+    _quota_pending_file = CONFIG_DIR / f"_quota_pending_{chat_id}.json"
+    if _quota_pending_file.exists() and not text.startswith("/") and _is_admin(chat_id):
+        pending = {}
+        try:
+            pending = json.loads(_quota_pending_file.read_text())
+        except Exception:
+            pass
+        _quota_pending_file.unlink(missing_ok=True)
+        target_id   = pending.get("target_id", "")
+        target_name = pending.get("target_name", target_id)
+        if target_id:
+            raw = text.strip().lower()
+            if raw == "off":
+                new_allowance = None
+            else:
+                try:
+                    new_allowance = float(raw)
+                    if new_allowance < 0:
+                        send_message(token, chat_id, "Allowance must be >= 0.")
+                        return
+                except ValueError:
+                    send_message(token, chat_id, f"Invalid amount `{raw}`. Use a number or `off`.")
+                    return
+            target_dir = CONFIG_DIR / "users" / target_id
+            target_dir.mkdir(parents=True, exist_ok=True)
+            set_demo_allowance(target_dir, new_allowance)
+            if new_allowance is None or new_allowance > 0:
+                user_msg = (
+                    "✅ *Your account has been activated!*\n\n"
+                    "You now have access to your AI coach.\n"
+                    "Ask me anything or use /help to see what I can do."
+                )
+            else:
+                user_msg = (
+                    "⛔ *Your demo access has been paused.*\n\n"
+                    "Contact [@SuperMariooo](https://t.me/SuperMariooo) to top up your account."
+                )
+            try:
+                send_message(token, target_id, user_msg)
+            except Exception:
+                pass
+            label = "unlimited" if new_allowance is None else f"${new_allowance:.2f}"
+            send_message(token, chat_id, f"✅ *{target_name}* (`{target_id}`) quota set to {label}.")
+        return
 
     # ── Admin delete confirmation ─────────────────────────────────────────────
     _admin_del_confirm = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
