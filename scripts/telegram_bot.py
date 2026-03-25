@@ -653,6 +653,20 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data in ("admin_stats", "admin_users", "admin_quotas", "admin_list", "admin_web"):
+        if not _is_admin(chat_id):
+            send_message(token, chat_id, "⛔ Admin only.")
+            return
+        sub = data[len("admin_"):]
+        if sub == "web":
+            web_url = os.environ.get("WEB_URL", "")
+            send_message(token, chat_id, f"🌐 [Open web panel]({web_url})" if web_url else "WEB_URL not configured.")
+            return
+        reply = cmd_admin(chat_id, [sub])
+        if reply:
+            send_message(token, chat_id, reply)
+        return
+
     if data.startswith("admin_delete_yes_") or data == "admin_delete_no":
         confirm_file = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
         confirm_file.unlink(missing_ok=True)
@@ -1757,16 +1771,26 @@ def cmd_admin(chat_id: str, args: list) -> str:
         return "⛔ Admin only."
 
     if not args:
-        return (
-            "*Admin commands:*\n"
-            "`/admin quota <id> <$>` — set demo allowance\n"
-            "`/admin quota <id>` — check a user's quota\n"
-            "`/admin quotas` — list all users with quotas\n"
-            "`/admin stats` — global usage summary\n"
-            "`/admin users` — count users (all / strava / pending)\n"
-            "`/admin list` — list all users with names\n"
-            "`/admin delete <id>` — delete a user (requires confirmation)"
-        )
+        token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+        tg_api_json(token, "sendMessage", {
+            "chat_id":    chat_id,
+            "text":       "*Admin panel:*\nTap a button or type a command with an ID.",
+            "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [
+                [
+                    {"text": "📊 Stats",  "callback_data": "admin_stats"},
+                    {"text": "👥 Users",  "callback_data": "admin_users"},
+                ],
+                [
+                    {"text": "📋 Quotas", "callback_data": "admin_quotas"},
+                    {"text": "📜 List",   "callback_data": "admin_list"},
+                ],
+                [
+                    {"text": "🌐 Web panel", "callback_data": "admin_web"},
+                ],
+            ]},
+        })
+        return None
 
     sub = args[0].lower()
 
