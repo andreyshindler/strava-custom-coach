@@ -31,6 +31,7 @@ import json
 import logging
 import logging.handlers
 import os
+import sqlite3
 import sys
 import time
 import urllib.request
@@ -123,7 +124,62 @@ def record_ai_cost(user_dir: Path, input_tokens: int, output_tokens: int) -> flo
     quota = get_demo_quota(user_dir)
     quota["spent_usd"] = round(quota.get("spent_usd", 0.0) + cost, 8)
     _quota_file(user_dir).write_text(json.dumps(quota))
+    # Track for query logger (reset each message)
+    _ai_usage["input_tokens"]  += input_tokens
+    _ai_usage["output_tokens"] += output_tokens
+    _ai_usage["cost_usd"]      += cost
     return cost
+
+
+# Per-message AI usage accumulator — reset at start of each handle_message call
+_ai_usage: dict = {"input_tokens": 0, "output_tokens": 0, "cost_usd": 0.0}
+
+
+# ── Per-user query history (SQLite) ───────────────────────────────────────────
+
+def _db_path(user_dir: Path) -> Path:
+    return user_dir / "history.db"
+
+
+def _db_init(user_dir: Path):
+    """Create the queries table if it doesn't exist."""
+    with sqlite3.connect(_db_path(user_dir)) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS queries (
+                id           INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp    TEXT    NOT NULL,
+                user_id      TEXT    NOT NULL,
+                user_name    TEXT    NOT NULL,
+                query        TEXT    NOT NULL,
+                tokens_used  INTEGER NOT NULL DEFAULT 0,
+                cost_usd     REAL    NOT NULL DEFAULT 0.0,
+                response     TEXT    NOT NULL
+            )
+        """)
+
+
+def log_query(user_dir: Path, user_id: str, user_name: str,
+              query: str, response: str,
+              tokens_used: int = 0, cost_usd: float = 0.0):
+    """Append one row to the user's query history database."""
+    try:
+        _db_init(user_dir)
+        with sqlite3.connect(_db_path(user_dir)) as conn:
+            conn.execute(
+                "INSERT INTO queries (timestamp, user_id, user_name, query, tokens_used, cost_usd, response) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    datetime.utcnow().isoformat(timespec="seconds"),
+                    user_id,
+                    user_name,
+                    query,
+                    tokens_used,
+                    round(cost_usd, 8),
+                    response[:4000],  # cap to avoid huge rows
+                )
+            )
+    except Exception as e:
+        log.warning(f"[history] Failed to log query for {user_id}: {e}")
 
 def cmd_notify(user_dir: Path, args: list) -> str:
     """Toggle or show automatic ride notification setting."""
@@ -2002,6 +2058,11 @@ def handle_message(token, message):
     chat_id = str(message.get("chat", {}).get("id", ""))
     text    = message.get("text", "").strip()
 
+    # Reset per-message AI usage tracker
+    _ai_usage["input_tokens"]  = 0
+    _ai_usage["output_tokens"] = 0
+    _ai_usage["cost_usd"]      = 0.0
+
     # ── Per-user dir ──────────────────────────────────────────────────────────
     _UDIR = get_user_dir(chat_id)
 
@@ -2206,6 +2267,13 @@ def handle_message(token, message):
         reply = f"Unknown command `/{cmd}`. Try /help"
 
     if reply is not None:
+        # Resolve display name
+        _user_name = message.get("from", {}).get("first_name", "") or chat_id
+        log_query(
+            _UDIR, chat_id, _user_name, text, reply,
+            tokens_used=_ai_usage["input_tokens"] + _ai_usage["output_tokens"],
+            cost_usd=_ai_usage["cost_usd"],
+        )
         if voice_text:
             send_message_with_voice_btn(token, chat_id, reply, voice_text)
         else:
