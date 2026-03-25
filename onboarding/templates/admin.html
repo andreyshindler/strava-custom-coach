@@ -189,7 +189,26 @@
   <a href="/" class="back">← Back to onboarding</a>
 </div>
 <script>
+const FILTER_IDS = ['search', 'filterStrava', 'filterQuota', 'filterNotify', 'filterActive'];
+
+function saveFilters() {
+  const state = {};
+  FILTER_IDS.forEach(id => state[id] = document.getElementById(id).value);
+  localStorage.setItem('adminFilters', JSON.stringify(state));
+}
+
+function restoreFilters() {
+  try {
+    const state = JSON.parse(localStorage.getItem('adminFilters') || '{}');
+    FILTER_IDS.forEach(id => {
+      const el = document.getElementById(id);
+      if (state[id] !== undefined) el.value = state[id];
+    });
+  } catch(e) {}
+}
+
 function applyFilters() {
+  saveFilters();
   const search = document.getElementById('search').value.toLowerCase();
   const strava = document.getElementById('filterStrava').value;
   const quota  = document.getElementById('filterQuota').value;
@@ -197,17 +216,17 @@ function applyFilters() {
   const active = document.getElementById('filterActive').value;
   const rows   = document.querySelectorAll('tbody tr');
 
-  const now   = new Date();
-  const today = now.toISOString().slice(0, 10);
+  const now      = new Date();
+  const today    = now.toISOString().slice(0, 10);
   const weekAgo  = new Date(now - 7  * 86400000).toISOString().slice(0, 10);
   const monthAgo = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
 
   let visible = 0;
   rows.forEach(row => {
     const nameMatch   = !search || row.dataset.name.includes(search) || row.dataset.id.includes(search);
-    const stravaMatch = !strava || row.dataset.strava  === strava;
-    const quotaMatch  = !quota  || row.dataset.quota   === quota;
-    const notifyMatch = !notify || row.dataset.notify  === notify;
+    const stravaMatch = !strava || row.dataset.strava === strava;
+    const quotaMatch  = !quota  || row.dataset.quota  === quota;
+    const notifyMatch = !notify || row.dataset.notify === notify;
 
     let activeMatch = true;
     if (active) {
@@ -224,6 +243,8 @@ function applyFilters() {
   });
   document.getElementById('filterCount').textContent = `${visible} of ${rows.length} users`;
 }
+
+restoreFilters();
 applyFilters();
 </script>
 </body>
