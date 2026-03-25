@@ -490,6 +490,7 @@ CMD_GROUPS = {
     "contact":   "free",
     "notify":    "free",
     "leave":     "free",
+    "admin":     "free",
 }
 
 
