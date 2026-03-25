@@ -689,6 +689,20 @@ def handle_callback(token, callback_query):
     # Acknowledge the button press
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
+    if data in ("deleteplan_confirm", "deleteplan_cancel"):
+        udir = get_user_dir(chat_id)
+        df = udir / "pending_delete.txt"
+        df.unlink(missing_ok=True)
+        if data == "deleteplan_cancel":
+            send_message(token, chat_id, "👍 Cancelled. Your plan is safe.")
+            return
+        plan_file = udir / "training_plan.json"
+        plan_file.unlink(missing_ok=True)
+        wf = udir / "plan_wizard_state.json"
+        wf.unlink(missing_ok=True)
+        send_message(token, chat_id, "🗑️ Training plan deleted.\n\nUse /newplan to create a new one.")
+        return
+
     if data.startswith("wizard_"):
         udir = get_user_dir(chat_id)
         # Map callback data to equivalent text input
@@ -2432,7 +2446,7 @@ def _do_leave(token: str, chat_id: str):
     )
 
 
-def cmd_deleteplan(persona):
+def cmd_deleteplan(persona, token: str = "", chat_id: str = ""):
     """Ask for confirmation before deleting."""
     plan_file = _UDIR / "training_plan.json"
     if not plan_file.exists():
@@ -2445,19 +2459,29 @@ def cmd_deleteplan(persona):
     xco   = "✅ XCO included" if plan.get("xco_power") else "🚴 Cycling only"
     event = f" — {plan['event_name']}" if plan.get("event_name") else ""
 
-    # Save pending state
     _UDIR.mkdir(parents=True, exist_ok=True)
     _delete_confirm_file().write_text("pending")
 
-    return (
+    msg = (
         f"🗑 *Delete Training Plan?*\n\n"
         f"Current plan:\n"
         f"  🎯 Goal: *{goal}{event}*\n"
         f"  📅 Duration: *{weeks} weeks* (started {start})\n"
         f"  💪 {xco}\n\n"
-        f"⚠️ This cannot be undone.\n\n"
-        f"Reply *yes* to confirm or *no* to cancel."
-    ), None
+        f"⚠️ This cannot be undone."
+    )
+
+    if token and chat_id:
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": msg, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, delete", "callback_data": "deleteplan_confirm"},
+                {"text": "❌ Cancel",       "callback_data": "deleteplan_cancel"},
+            ]]},
+        })
+        return None, None
+
+    return msg + "\n\nReply *yes* to confirm or *no* to cancel.", None
 
 
 def transcribe_voice(token, file_id):
@@ -2769,7 +2793,7 @@ def handle_message(token, message):
             clear_wizard()
             reply = cmd_newplan(persona, token=token, chat_id=chat_id)
     elif cmd == "deleteplan":
-        result = cmd_deleteplan(persona)
+        result = cmd_deleteplan(persona, token=token, chat_id=chat_id)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
     elif cmd == "week":
         reply = cmd_week(persona)
