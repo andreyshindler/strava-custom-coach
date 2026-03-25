@@ -1805,6 +1805,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
             spent     = q.get("spent_usd", 0.0)
             if allowance is None:
                 rows.append(f"♾️ *{name}*\n   `{udir.name}` — unlimited (${spent:.4f} spent)")
+            elif allowance == 0:
+                rows.append(f"🆕 *{name}*\n   `{udir.name}` — no quota set yet")
             else:
                 pct       = (spent / allowance * 100) if allowance > 0 else 100
                 bar       = "█" * int(pct / 10) + "░" * (10 - int(pct / 10))
