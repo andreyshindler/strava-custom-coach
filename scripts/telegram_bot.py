@@ -712,6 +712,7 @@ def handle_callback(token, callback_query):
             "wizard_xco_yes": "y", "wizard_xco_no": "n",
             "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
             "wizard_ftp_confirm_yes": "yes", "wizard_ftp_confirm_no": "no",
+            "wizard_target_ftp_confirm_yes": "yes", "wizard_target_ftp_confirm_no": "no",
         }
         if data.startswith("wizard_weeks_"):
             equivalent = data[len("wizard_weeks_"):]
@@ -1462,21 +1463,18 @@ def clear_wizard():
     if f.exists():
         f.unlink()
 
-def _realistic_ftp_gain(ftp: int, weeks: int) -> str:
-    """Return a realistic FTP gain range string based on current FTP and plan duration."""
-    # Training level proxy from FTP
+def _realistic_ftp_gain(ftp: int, weeks: int):
+    """Return (lo, hi, level, label_str) for realistic FTP gain."""
     if ftp < 200:
-        level, lo_pct, hi_pct = "beginner", 0.05, 0.08        # 5–8% per 8 weeks
+        level, lo_pct, hi_pct = "beginner", 0.05, 0.08
     elif ftp < 280:
-        level, lo_pct, hi_pct = "intermediate", 0.02, 0.04    # 2–4% per 8 weeks
+        level, lo_pct, hi_pct = "intermediate", 0.02, 0.04
     else:
-        level, lo_pct, hi_pct = "advanced", 0.01, 0.02        # 1–2% per 8 weeks
-
-    # Scale percentages proportionally to duration (baseline = 8 weeks)
+        level, lo_pct, hi_pct = "advanced", 0.01, 0.02
     scale = weeks / 8.0
     lo = max(1, round(ftp * lo_pct * scale))
     hi = max(2, round(ftp * hi_pct * scale))
-    return f"+{lo}–{hi}W ({level}, {weeks} weeks)"
+    return lo, hi, level, f"+{lo}–{hi}W ({level}, {weeks} weeks)"
 
 
 def _wizard_send(token, chat_id, reply, state):
@@ -1490,6 +1488,15 @@ def _wizard_send(token, chat_id, reply, state):
             "reply_markup": {"inline_keyboard": [[
                 {"text": "✅ Yes, that's correct", "callback_data": "wizard_ftp_confirm_yes"},
                 {"text": "❌ No, re-enter",        "callback_data": "wizard_ftp_confirm_no"},
+            ]]},
+        })
+        return
+    if isinstance(state, dict) and state.get("target_ftp_confirm_pending"):
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, set it anyway", "callback_data": "wizard_target_ftp_confirm_yes"},
+                {"text": "❌ No, re-enter",       "callback_data": "wizard_target_ftp_confirm_no"},
             ]]},
         })
         return
@@ -1682,7 +1689,7 @@ def handle_wizard(state, text, persona):
                 f"✅ Duration: *{weeks} weeks*\n\n"
                 f"*STEP 4: Target FTP*\n\n"
                 f"Current FTP: *{ftp}W*\n"
-                f"Realistic gain: {_realistic_ftp_gain(ftp, weeks)}\n\n"
+                f"Realistic gain: {_realistic_ftp_gain(ftp, weeks)[3]}\n\n"
                 f"What FTP do you want to reach?\n"
                 f"_(reply with target watts, e.g. {ftp+20})_"
             ), False
@@ -1751,14 +1758,51 @@ def handle_wizard(state, text, persona):
 
     # ── TARGET FTP ────────────────────────────────────────────────────────────
     elif step == "target_ftp":
+        # Confirm if previously flagged as ambitious
+        if state.get("target_ftp_confirm_pending"):
+            if text.strip().lower() in ("y", "yes"):
+                state["target_ftp"] = state.pop("target_ftp_confirm_pending")
+            else:
+                del state["target_ftp_confirm_pending"]
+                save_wizard(state)
+                return "No problem — please re-enter your target FTP in watts:", False
+            state["step"] = "xco"
+            save_wizard(state)
+            return (
+                f"✅ Target FTP: *{state['target_ftp']}W* confirmed.\n\n"
+                f"*STEP 5: Include XCO Power Training?*\n\n"
+                f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
+                f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
+                f"🚴 *Bike:* Torque intervals, sprint power, micro-bursts\n\n"
+                f"Recommended if you race XCO or want explosive power."
+            ), False
+
         try:
-            state["target_ftp"] = int(text.strip())
+            target = int(text.strip())
         except ValueError:
             return "Please reply with a number (target FTP in watts)", False
+
+        current_ftp = state.get("ftp", 220)
+        weeks       = state.get("weeks", 8)
+        _, hi, _, label = _realistic_ftp_gain(current_ftp, weeks)
+        realistic_max   = current_ftp + hi
+
+        if target > realistic_max:
+            state["target_ftp_confirm_pending"] = target
+            save_wizard(state)
+            return (
+                f"⚠️ *{target}W is above the realistic upper bound* for {weeks} weeks.\n\n"
+                f"Based on your current FTP ({current_ftp}W), the realistic ceiling is *{realistic_max}W* ({label}).\n\n"
+                f"Setting an unrealistic target won't make the plan harder — it may just miscalibrate your zones.\n\n"
+                f"Are you sure you want to set *{target}W* as your target?",
+                False
+            )
+
+        state["target_ftp"] = target
         state["step"] = "xco"
         save_wizard(state)
         return (
-            f"✅ Target FTP: *{state['target_ftp']}W*\n\n"
+            f"✅ Target FTP: *{target}W*\n\n"
             f"*STEP 5: Include XCO Power Training?*\n\n"
             f"Adds 2 gym sessions/week specifically for cross-country MTB:\n\n"
             f"💪 *Gym:* Max strength, explosive power, core & coordination\n"
