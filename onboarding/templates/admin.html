@@ -102,6 +102,18 @@
       <option value="active">Active</option>
       <option value="unlimited">Unlimited</option>
     </select>
+    <select class="filter-select" id="filterNotify" onchange="applyFilters()">
+      <option value="">Any notify</option>
+      <option value="on">Notify on</option>
+      <option value="off">Notify off</option>
+    </select>
+    <select class="filter-select" id="filterActive" onchange="applyFilters()">
+      <option value="">Any activity</option>
+      <option value="today">Active today</option>
+      <option value="week">Active this week</option>
+      <option value="month">Active this month</option>
+      <option value="never">Never active</option>
+    </select>
     <span class="filter-count" id="filterCount"></span>
   </div>
   <table>
@@ -122,8 +134,10 @@
     <tbody>
       {% for u in users %}
       <tr data-name="{{ u.name|lower }}" data-id="{{ u.chat_id }}"
-          data-strava="{{ 'connected' if u.strava else 'pending' }}"
-          data-quota="{{ 'pending' if not u.strava else ('over' if u.allowance and u.spent >= u.allowance else ('unlimited' if u.allowance is none else 'active')) }}">
+              data-strava="{{ 'connected' if u.strava else 'pending' }}"
+          data-quota="{{ 'pending' if not u.strava else ('over' if u.allowance and u.spent >= u.allowance else ('unlimited' if u.allowance is none else 'active')) }}"
+          data-notify="{{ 'on' if u.notify else 'off' }}"
+          data-last="{{ u.last_query if u.last_query != '—' else '' }}">
         <td><a href="/admin/{{ u.chat_id }}" style="color:var(--text);text-decoration:none;font-weight:500;" onmouseover="this.style.color='var(--orange)'" onmouseout="this.style.color='var(--text)'">{{ u.name }}</a></td>
         <td><code>{{ u.chat_id }}</code></td>
         <td>
@@ -179,13 +193,32 @@ function applyFilters() {
   const search = document.getElementById('search').value.toLowerCase();
   const strava = document.getElementById('filterStrava').value;
   const quota  = document.getElementById('filterQuota').value;
+  const notify = document.getElementById('filterNotify').value;
+  const active = document.getElementById('filterActive').value;
   const rows   = document.querySelectorAll('tbody tr');
-  let visible  = 0;
+
+  const now   = new Date();
+  const today = now.toISOString().slice(0, 10);
+  const weekAgo  = new Date(now - 7  * 86400000).toISOString().slice(0, 10);
+  const monthAgo = new Date(now - 30 * 86400000).toISOString().slice(0, 10);
+
+  let visible = 0;
   rows.forEach(row => {
-    const nameMatch  = !search || row.dataset.name.includes(search) || row.dataset.id.includes(search);
-    const stravaMatch = !strava || row.dataset.strava === strava;
-    const quotaMatch  = !quota  || row.dataset.quota  === quota;
-    const show = nameMatch && stravaMatch && quotaMatch;
+    const nameMatch   = !search || row.dataset.name.includes(search) || row.dataset.id.includes(search);
+    const stravaMatch = !strava || row.dataset.strava  === strava;
+    const quotaMatch  = !quota  || row.dataset.quota   === quota;
+    const notifyMatch = !notify || row.dataset.notify  === notify;
+
+    let activeMatch = true;
+    if (active) {
+      const last = row.dataset.last;
+      if (active === 'never')  activeMatch = !last;
+      if (active === 'today')  activeMatch = last >= today;
+      if (active === 'week')   activeMatch = last >= weekAgo;
+      if (active === 'month')  activeMatch = last >= monthAgo;
+    }
+
+    const show = nameMatch && stravaMatch && quotaMatch && notifyMatch && activeMatch;
     row.classList.toggle('hidden', !show);
     if (show) visible++;
   });
