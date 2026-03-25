@@ -1803,6 +1803,7 @@ def handle_wizard(state, text, persona):
         if state.get("target_ftp_confirm_pending"):
             if text.strip().lower() in ("y", "yes"):
                 state["target_ftp"] = state.pop("target_ftp_confirm_pending")
+                state["target_ftp_override"] = True
             else:
                 del state["target_ftp_confirm_pending"]
                 save_wizard(state)
@@ -1917,7 +1918,8 @@ def build_confirm_message(state):
     if state.get("event_name"):
         lines.append(f"🏁 Event: *{state['event_name']}* on {state.get('event_date','')}")
     if state.get("target_ftp"):
-        lines.append(f"📈 Target FTP: *{state['target_ftp']}W*")
+        ftp_note = " _(above recommended)_" if state.get("target_ftp_override") else ""
+        lines.append(f"📈 Target FTP: *{state['target_ftp']}W*{ftp_note}")
     if state.get("target_km"):
         lines.append(f"🛣 Distance target: *{state['target_km']} km/week*")
     if state.get("target_kg"):
