@@ -351,13 +351,14 @@ def admin():
             # Query history stats
             queries = 0
             last_query = None
+            total_cost = 0.0
             if db_file.exists():
                 try:
                     with _sqlite3.connect(db_file) as conn:
                         row = conn.execute("SELECT COUNT(*), SUM(cost_usd), MAX(timestamp) FROM queries").fetchone()
                         queries, total_cost, last_query = row[0], row[1] or 0.0, row[2]
                 except Exception:
-                    total_cost = 0.0
+                    pass
 
             users.append({
                 "chat_id":    d.name,
