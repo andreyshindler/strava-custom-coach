@@ -406,22 +406,15 @@ def admin_set_quota(chat_id: str):
     bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
     if bot_token:
         new_allowance = quota.get("allowance_usd")
-        if new_allowance is None:
+        if new_allowance is None or new_allowance > 0:
             msg = (
                 "✅ *Your account has been activated!*\n\n"
-                "You now have unlimited access to your AI coach.\n"
+                "You now have access to your AI coach.\n"
                 "Ask me anything or use /help to see what I can do."
-            )
-        elif new_allowance > 0:
-            msg = (
-                f"✅ *Your account has been activated!*\n\n"
-                f"You have ${new_allowance:.2f} of demo credit to explore your AI coach.\n"
-                f"Ask me anything or use /help to see what I can do."
             )
         else:
             msg = (
                 "⛔ *Your demo access has been paused.*\n\n"
-                "Your credit has been set to $0.00.\n"
                 "Contact [@SuperMariooo](https://t.me/SuperMariooo) to top up your account."
             )
         if msg:
