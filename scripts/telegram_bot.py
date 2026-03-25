@@ -2342,8 +2342,8 @@ def handle_message(token, message):
         _has_pending_confirm = (CONFIG_DIR / f"_delete_confirm_{chat_id}.json").exists()
         _has_quota_pending   = (CONFIG_DIR / f"_quota_pending_{chat_id}.json").exists()
         _is_free_cmd = CMD_GROUPS.get(_raw_cmd, "ai_and_strava") == "free"
-        # Free commands work for everyone; admin pending replies also bypass onboarding
-        if _is_free_cmd or ((_has_pending_confirm or _has_quota_pending) and _is_admin(chat_id)):
+        # Admin can use free commands and respond to pending confirmations without Strava
+        if _is_admin(chat_id) and (_is_free_cmd or _has_pending_confirm or _has_quota_pending):
             pass  # fall through to command dispatch
         else:
             handle_onboarding(token, chat_id, text, _UDIR)
