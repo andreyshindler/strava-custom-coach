@@ -1938,17 +1938,14 @@ _AI_PLAN_COST_USD = 0.02  # estimated cost per AI plan generation (Haiku)
 def _build_plan_type_message(state):
     _, spent, allowance = check_demo_quota(_UDIR)
     if allowance is not None:
-        rem_now   = max(0, allowance - spent)
         rem_after = max(0, allowance - spent - _AI_PLAN_COST_USD)
-        filled_now   = int(rem_now   / allowance * 10)
+        pct_after = round(rem_after / allowance * 100)
         filled_after = int(rem_after / allowance * 10)
-        bar_now   = "█" * filled_now  + "░" * (10 - filled_now)
         bar_after = "█" * filled_after + "░" * (10 - filled_after)
         ai_line = (
             f"🤖 *AI-generated*\n"
             f"  Personalized by {state.get('persona','your coach')}, adaptive periodization\n\n"
-            f"  Now:   `{bar_now}`\n"
-            f"  After: `{bar_after}`"
+            f"  `{bar_after}` {pct_after}% remaining"
         )
     else:
         ai_line = (
