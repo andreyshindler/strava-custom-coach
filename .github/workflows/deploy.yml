@@ -5,10 +5,15 @@ on:
     branches: [master]
 
 jobs:
-  deploy:
+  deploy-bot:
     runs-on: ubuntu-latest
+    if: >
+      contains(github.event.head_commit.modified, 'scripts/') ||
+      contains(github.event.head_commit.added, 'scripts/') ||
+      contains(github.event.head_commit.modified, 'Dockerfile') ||
+      contains(github.event.head_commit.modified, 'docker-compose.yml')
     steps:
-      - name: Deploy to VPS
+      - name: Deploy bot to VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -17,4 +22,23 @@ jobs:
           script: |
             cd ~/projects/strava-coach-bot
             git pull origin master
-            docker compose up -d --build bot web
+            docker compose up -d --build bot
+
+  deploy-web:
+    runs-on: ubuntu-latest
+    if: >
+      contains(github.event.head_commit.modified, 'onboarding/') ||
+      contains(github.event.head_commit.added, 'onboarding/') ||
+      contains(github.event.head_commit.modified, 'Dockerfile') ||
+      contains(github.event.head_commit.modified, 'docker-compose.yml')
+    steps:
+      - name: Deploy web to VPS
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd ~/projects/strava-coach-bot
+            git pull origin master
+            docker compose up -d --build web
