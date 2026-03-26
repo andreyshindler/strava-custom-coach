@@ -1943,9 +1943,8 @@ def _build_plan_type_message(state):
         filled_after = int(rem_after / allowance * 10)
         bar_after = "█" * filled_after + "░" * (10 - filled_after)
         ai_line = (
-            f"🤖 *AI-generated*\n"
-            f"  Personalized by {state.get('persona','your coach')}, adaptive periodization\n\n"
-            f"  `{bar_after}` {pct_after}% remaining"
+            f"🤖 *AI-generated* — `{bar_after}` {pct_after}% remaining\n"
+            f"  Personalized by {state.get('persona','your coach')}, adaptive periodization"
         )
     else:
         ai_line = (
