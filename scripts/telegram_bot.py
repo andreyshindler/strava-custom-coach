@@ -1948,7 +1948,7 @@ def _build_plan_type_message(state):
         bar_after = "█" * filled_after + "░" * (10 - filled_after)
 
         cost_line = (
-            f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} ({pct_cost}% of your ${allowance:.2f} allowance)\n"
+            f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} ({pct_cost}% of allowance)\n"
             f"  Personalized by {state.get('persona','your coach')}, adaptive periodization\n\n"
             f"  Now:   `{bar_now}` {pct_used_now:.0f}%\n"
             f"  After: `{bar_after}` {pct_used_after:.0f}%"
