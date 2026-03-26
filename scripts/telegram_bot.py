@@ -1933,7 +1933,7 @@ def handle_wizard(state, text, persona):
     return "Something went wrong. Send /newplan to start again.", True
 
 
-_AI_PLAN_COST_USD = 0.02  # estimated cost per AI plan generation (Haiku)
+_AI_PLAN_COST_USD = 0.05  # estimated cost per AI plan generation (Haiku)
 
 def _build_plan_type_message(state):
     _, spent, allowance = check_demo_quota(_UDIR)
@@ -2063,6 +2063,10 @@ def _generate_ai_plan(state, persona):
             raw = raw[4:]
     plan_data = json.loads(raw.strip())
 
+    weekly_plans = plan_data.get("weekly_plans", [])
+    if not weekly_plans or len(weekly_plans) < weeks:
+        raise ValueError(f"AI returned incomplete plan ({len(weekly_plans)}/{weeks} weeks). Try again.")
+
     # Merge into full plan structure
     plan = {
         "goal": goal, "weeks": weeks, "ftp": ftp,
@@ -2072,7 +2076,7 @@ def _generate_ai_plan(state, persona):
         "event_name": event_name, "event_date": event_date,
         "target_ftp": target_ftp, "target_km": target_km, "target_kg": target_kg,
         "ai_generated": True,
-        "weekly_plans": plan_data.get("weekly_plans", []),
+        "weekly_plans": weekly_plans,
     }
     return plan
 
