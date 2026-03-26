@@ -726,6 +726,7 @@ def handle_callback(token, callback_query):
             "wizard_goal_1": "1", "wizard_goal_2": "2", "wizard_goal_3": "3",
             "wizard_goal_4": "4", "wizard_goal_5": "5",
             "wizard_xco_yes": "y", "wizard_xco_no": "n",
+            "wizard_plan_classic": "classic", "wizard_plan_ai": "ai",
             "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
             "wizard_ftp_confirm_yes": "yes", "wizard_ftp_confirm_no": "no",
             "wizard_target_ftp_confirm_yes": "yes", "wizard_target_ftp_confirm_no": "no",
@@ -1385,10 +1386,18 @@ def cmd_trends(persona, days=30):
     """Answer a plain text question in the coach's voice using Claude API."""
     import json as _json
 
+    _zf = persona.get("zone_feedback", {})
+    _voice_samples = []
+    for _v in list(_zf.values())[:3]:
+        if isinstance(_v, list):
+            _voice_samples.append(_v[0])
+        elif isinstance(_v, str) and _v != _zf.get("no_ftp", ""):
+            _voice_samples.append(_v)
+    _voice_hint = " | ".join(_voice_samples[:2]) if _voice_samples else persona.get("header_quote", "")
+
     system = (
-        f"You are a cycling coach. You speak exactly like {persona['name']}.\n"
-        f"Persona: {persona['tagline']}\n"
-        f"Voice: {persona.get('header_quote', '')}\n\n"
+        f"You are {persona['name']}, a cycling coach. {persona['tagline']}\n"
+        f"Speak in first person, in your authentic voice — exactly like these examples: {_voice_hint}\n\n"
         f"Answer the athlete's question in character. Be direct, specific, and brief. "
         f"Max 3-4 sentences. No bullet points. Sound like a real coach talking to an athlete."
     )
@@ -1544,6 +1553,14 @@ def _wizard_send(token, chat_id, reply, state):
             "reply_markup": {"inline_keyboard": [[
                 {"text": "✅ Yes", "callback_data": "wizard_xco_yes"},
                 {"text": "❌ No",  "callback_data": "wizard_xco_no"},
+            ]]},
+        })
+    elif step == "plan_type":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "📋 Classic (free)", "callback_data": "wizard_plan_classic"},
+                {"text": "🤖 AI-generated",   "callback_data": "wizard_plan_ai"},
             ]]},
         })
     elif step == "confirm":
@@ -1889,6 +1906,16 @@ def handle_wizard(state, text, persona):
     elif step == "xco":
         xco = text.strip().lower() in ("y", "yes")
         state["xco"] = xco
+        state["step"] = "plan_type"
+        save_wizard(state)
+        return _build_plan_type_message(state), False
+
+    # ── PLAN TYPE ─────────────────────────────────────────────────────────────
+    elif step == "plan_type":
+        choice = text.strip().lower()
+        if choice not in ("classic", "ai"):
+            return "Choose *Classic* or *AI-generated*.", False
+        state["plan_type"] = choice
         state["step"] = "confirm"
         save_wizard(state)
         return build_confirm_message(state), False
@@ -1904,6 +1931,24 @@ def handle_wizard(state, text, persona):
             return "Reply *y* to create the plan or *n* to cancel", False
 
     return "Something went wrong. Send /newplan to start again.", True
+
+
+_AI_PLAN_COST_USD = 0.02  # estimated cost per AI plan generation (Haiku)
+
+def _build_plan_type_message(state):
+    _, spent, allowance = check_demo_quota(_UDIR)
+    if allowance is not None:
+        pct = round(_AI_PLAN_COST_USD / allowance * 100, 1)
+        cost_line = f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} ({pct}% of your ${allowance:.2f} allowance)"
+    else:
+        cost_line = f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} (unlimited plan)"
+    return (
+        f"*How would you like to generate your plan?*\n\n"
+        f"📋 *Classic* — instant, rule-based, free\n\n"
+        f"{cost_line}\n"
+        f"  Personalized by {state.get('persona','your coach')}, "
+        f"adaptive periodization, unique descriptions in coach voice"
+    )
 
 
 def build_confirm_message(state):
@@ -1923,8 +1968,106 @@ def build_confirm_message(state):
         lines.append(f"🛣 Distance target: *{state['target_km']} km/week*")
     if state.get("target_kg"):
         lines.append(f"⚖️ Target weight: *{state['target_kg']} kg*")
+    plan_type = state.get("plan_type", "classic")
+    lines.append(f"🔧 Generation: *{'🤖 AI-generated' if plan_type == 'ai' else '📋 Classic'}*")
     lines.append("\nReply *y* to build this plan or *n* to cancel")
     return "\n".join(lines)
+
+
+def _generate_ai_plan(state, persona):
+    """Call Claude Haiku to generate a personalized training plan JSON."""
+    import urllib.request, urllib.error
+    from datetime import datetime, timedelta
+
+    goal       = state.get("goal", "general")
+    ftp        = state.get("ftp", 220)
+    weeks      = state.get("weeks", 8)
+    xco        = state.get("xco", False)
+    target_ftp = state.get("target_ftp")
+    target_km  = state.get("target_km")
+    target_kg  = state.get("target_kg")
+    event_name = state.get("event_name")
+    event_date = state.get("event_date")
+
+    # Compute start date (next Sunday)
+    today = datetime.today()
+    days_to_sunday = (6 - today.weekday()) % 7
+    start = today + timedelta(days=days_to_sunday)
+    start_str = start.strftime("%Y-%m-%d")
+
+    extras = []
+    if target_ftp: extras.append(f"Target FTP: {target_ftp}W")
+    if target_km:  extras.append(f"Target distance: {target_km} km/week")
+    if target_kg:  extras.append(f"Target weight: {target_kg} kg")
+    if event_name: extras.append(f"Event: {event_name} on {event_date}")
+    if xco:        extras.append("Include XCO gym sessions (2/week: strength + bike power)")
+    extras_str = "\n".join(extras) if extras else "No additional targets."
+
+    workout_types = "rest, z2_base, long_ride, sweet_spot, threshold_2x20, vo2_intervals, recovery, tempo"
+    if xco:
+        workout_types += ", gym_strength, gym_power"
+
+    prompt = (
+        f"Generate a {weeks}-week cycling training plan as JSON.\n\n"
+        f"Athlete: FTP {ftp}W, Goal: {goal}\n"
+        f"{extras_str}\n\n"
+        f"Plan starts: {start_str} (Sunday)\n\n"
+        f"Rules:\n"
+        f"- 7 days per week, Sunday to Saturday\n"
+        f"- Use only these workout types: {workout_types}\n"
+        f"- Week 4, 8, 12, etc. are recovery weeks (easier)\n"
+        f"- Vary sessions week to week for progression\n"
+        f"- Write description in first person as {persona['name']} speaking to the athlete (1-2 sentences, coaching voice)\n\n"
+        f"Output ONLY valid JSON, no extra text:\n"
+        f'{{"weekly_plans": [{{"week": 1, "phase": "build", "week_start": "YYYY-MM-DD", "total_tss": 0, "days": ['
+        f'{{"day": "Sunday", "date": "YYYY-MM-DD", "workout": "rest", "name": "Rest Day", "description": "...", "duration_min": 0, "tss": 0, "zone": 0}}'
+        f']}}]}}'
+    )
+
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    payload = json.dumps({
+        "model": "claude-haiku-4-5-20251001",
+        "max_tokens": 8000,
+        "system": f"You are {persona['name']}, a world-class cycling coach. {persona.get('tagline','')} Output only valid JSON.",
+        "messages": [{"role": "user", "content": prompt}],
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+            "x-api-key": api_key,
+            "anthropic-version": "2023-06-01",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=60) as resp:
+        data = json.loads(resp.read())
+
+    usage = data.get("usage", {})
+    record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
+
+    raw = data["content"][0]["text"].strip()
+    # Strip markdown code fences if present
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+    plan_data = json.loads(raw.strip())
+
+    # Merge into full plan structure
+    plan = {
+        "goal": goal, "weeks": weeks, "ftp": ftp,
+        "persona": persona["id"],
+        "start_date": start_str,
+        "created_at": datetime.now().isoformat(),
+        "event_name": event_name, "event_date": event_date,
+        "target_ftp": target_ftp, "target_km": target_km, "target_kg": target_kg,
+        "ai_generated": True,
+        "weekly_plans": plan_data.get("weekly_plans", []),
+    }
+    return plan
 
 
 def generate_plan_from_wizard(state, persona):
@@ -1932,10 +2075,11 @@ def generate_plan_from_wizard(state, persona):
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from training_plan import build_plan, build_xco_plan
 
-    goal   = state.get("goal", "general")
-    ftp    = state.get("ftp", 220)
-    weeks  = state.get("weeks", 8)
-    xco    = state.get("xco", False)
+    goal      = state.get("goal", "general")
+    ftp       = state.get("ftp", 220)
+    weeks     = state.get("weeks", 8)
+    xco       = state.get("xco", False)
+    use_ai    = state.get("plan_type") == "ai"
 
     kwargs = dict(
         goal=goal, weeks=weeks, ftp=ftp, persona=persona,
@@ -1947,7 +2091,9 @@ def generate_plan_from_wizard(state, persona):
     )
 
     try:
-        if xco:
+        if use_ai:
+            plan = _generate_ai_plan(state, persona)
+        elif xco:
             plan = build_xco_plan(**{k: v for k, v in kwargs.items() if k not in ("target_km","target_kg")})
         else:
             plan = build_plan(**kwargs)
@@ -1958,8 +2104,9 @@ def generate_plan_from_wizard(state, persona):
 
         # Show first week preview
         first_week = plan["weekly_plans"][0] if plan.get("weekly_plans") else {}
+        gen_label = "🤖 AI-generated" if use_ai else "📋 Classic"
         lines = [
-            f"✅ *Plan created and saved!*\n",
+            f"✅ *Plan created and saved!* ({gen_label})\n",
             f"📅 {weeks} weeks starting {plan['start_date']}",
             f"{'💪 XCO Power included' if xco else '🚴 Cycling only'}",
             f"\n*Week 1 preview:*",
@@ -2196,11 +2343,15 @@ def cmd_chat(user_message, persona):
         pass
 
     # ── Prompt caching: stable persona block + small dynamic block ─────────────
+    _zf = persona.get("zone_feedback", {})
+    _voice_samples = [pick_feedback(_zf, z) for z in ("z1", "z2", "z3") if _zf.get(z)]
+    _voice_hint = " | ".join(_voice_samples[:2]) if _voice_samples else ""
+
     stable_block = (
         f"You are {persona['name']}, a world-class cycling coach. "
         f"{persona.get('tagline', '')} "
-        f"Philosophy: {persona.get('beliefs', ['train smart, recover well'])[0] if persona.get('beliefs') else 'train consistently'}. "
-        f"Speak in first person, in your authentic voice. Be direct, motivating, specific. "
+        f"Speak in first person, in your authentic voice — exactly like these examples: {_voice_hint} "
+        f"Be direct, motivating, specific. "
         f"Reply in under 120 words. No bullet points — talk like a coach, not a listicle."
     )
     dynamic_block = f"Athlete FTP: {ftp}W\n{strava_ctx}{plan_ctx}".strip()
