@@ -1938,16 +1938,30 @@ _AI_PLAN_COST_USD = 0.02  # estimated cost per AI plan generation (Haiku)
 def _build_plan_type_message(state):
     _, spent, allowance = check_demo_quota(_UDIR)
     if allowance is not None:
-        pct = round(_AI_PLAN_COST_USD / allowance * 100, 1)
-        cost_line = f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} ({pct}% of your ${allowance:.2f} allowance)"
+        pct_used_now  = min(100, spent / allowance * 100)
+        pct_used_after = min(100, (spent + _AI_PLAN_COST_USD) / allowance * 100)
+        pct_cost      = round(_AI_PLAN_COST_USD / allowance * 100, 1)
+
+        filled_now   = int(pct_used_now  / 10)
+        filled_after = int(pct_used_after / 10)
+        bar_now   = "█" * filled_now  + "░" * (10 - filled_now)
+        bar_after = "█" * filled_after + "░" * (10 - filled_after)
+
+        cost_line = (
+            f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} ({pct_cost}% of your ${allowance:.2f} allowance)\n"
+            f"  Personalized by {state.get('persona','your coach')}, adaptive periodization\n\n"
+            f"  Now:   `{bar_now}` {pct_used_now:.0f}%\n"
+            f"  After: `{bar_after}` {pct_used_after:.0f}%"
+        )
     else:
-        cost_line = f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} (unlimited plan)"
+        cost_line = (
+            f"🤖 *AI-generated* — ~${_AI_PLAN_COST_USD:.2f} (♾️ unlimited)\n"
+            f"  Personalized by {state.get('persona','your coach')}, adaptive periodization"
+        )
     return (
         f"*How would you like to generate your plan?*\n\n"
         f"📋 *Classic* — instant, rule-based, free\n\n"
-        f"{cost_line}\n"
-        f"  Personalized by {state.get('persona','your coach')}, "
-        f"adaptive periodization, unique descriptions in coach voice"
+        f"{cost_line}"
     )
 
 
