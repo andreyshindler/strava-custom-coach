@@ -8,10 +8,10 @@ jobs:
   deploy-bot:
     runs-on: ubuntu-latest
     if: >
-      contains(github.event.head_commit.modified, 'scripts/') ||
-      contains(github.event.head_commit.added, 'scripts/') ||
-      contains(github.event.head_commit.modified, 'Dockerfile') ||
-      contains(github.event.head_commit.modified, 'docker-compose.yml')
+      contains(toJson(github.event.head_commit.modified), '"scripts/') ||
+      contains(toJson(github.event.head_commit.added), '"scripts/') ||
+      contains(toJson(github.event.head_commit.modified), '"Dockerfile') ||
+      contains(toJson(github.event.head_commit.modified), '"docker-compose.yml')
     steps:
       - name: Deploy bot to VPS
         uses: appleboy/ssh-action@v1
@@ -27,10 +27,10 @@ jobs:
   deploy-web:
     runs-on: ubuntu-latest
     if: >
-      contains(github.event.head_commit.modified, 'onboarding/') ||
-      contains(github.event.head_commit.added, 'onboarding/') ||
-      contains(github.event.head_commit.modified, 'Dockerfile') ||
-      contains(github.event.head_commit.modified, 'docker-compose.yml')
+      contains(toJson(github.event.head_commit.modified), '"onboarding/') ||
+      contains(toJson(github.event.head_commit.added), '"onboarding/') ||
+      contains(toJson(github.event.head_commit.modified), '"Dockerfile') ||
+      contains(toJson(github.event.head_commit.modified), '"docker-compose.yml')
     steps:
       - name: Deploy web to VPS
         uses: appleboy/ssh-action@v1
