@@ -137,6 +137,7 @@ def check_admin_auth(username: str, password: str) -> bool:
 
 def require_admin(f):
     @wraps(f)
+    @limiter.limit("30 per minute; 5 per second")
     def decorated(*args, **kwargs):
         auth = request.authorization
         if not auth or not check_admin_auth(auth.username, auth.password):
