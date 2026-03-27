@@ -894,11 +894,14 @@ def handle_callback(token, callback_query):
     if data in ("admin_pick_quota", "admin_pick_delete"):
         if not _is_admin(chat_id):
             return
+        _udir_a  = get_user_dir(chat_id)
+        _uname_a = callback_query.get("from", {}).get("first_name", "") or chat_id
         action = "quota_pick" if data == "admin_pick_quota" else "delete_pick"
         label  = "Set quota for:" if data == "admin_pick_quota" else "Delete user:"
         rows   = _admin_user_picker(action)
         if not rows:
             send_message(token, chat_id, "No users found.")
+            log_query(_udir_a, chat_id, _uname_a, f"[{data}]", "No users found.")
             return
         tg_api_json(token, "sendMessage", {
             "chat_id":    chat_id,
@@ -906,6 +909,7 @@ def handle_callback(token, callback_query):
             "parse_mode": "Markdown",
             "reply_markup": {"inline_keyboard": rows},
         })
+        log_query(_udir_a, chat_id, _uname_a, f"[{data}]", f"[user picker shown: {label}]")
         return
 
     if data.startswith("delete_pick_"):
@@ -933,6 +937,8 @@ def handle_callback(token, callback_query):
                 {"text": "❌ No, cancel",  "callback_data": "admin_delete_no"},
             ]]},
         })
+        _uname_a = callback_query.get("from", {}).get("first_name", "") or chat_id
+        log_query(get_user_dir(chat_id), chat_id, _uname_a, f"[delete_pick {target_id}]", f"[delete confirm shown: {target_name}]")
         return
 
     if data.startswith("quota_pick_"):
@@ -956,31 +962,42 @@ def handle_callback(token, callback_query):
         (CONFIG_DIR / f"_quota_pending_{chat_id}.json").write_text(
             json.dumps({"target_id": target_id, "target_name": target_name})
         )
-        send_message(token, chat_id,
+        prompt = (
             f"💰 Set quota for *{target_name}* (current: {cur_str})\n\n"
             f"Reply with amount in USD (e.g. `2.50`), `+1.00` to add to existing, or `off` for unlimited."
         )
+        send_message(token, chat_id, prompt)
+        _uname_a = callback_query.get("from", {}).get("first_name", "") or chat_id
+        log_query(get_user_dir(chat_id), chat_id, _uname_a, f"[quota_pick {target_id}]", f"[quota input requested: {target_name} current {cur_str}]")
         return
 
     if data in ("admin_stats", "admin_users", "admin_quotas", "admin_list", "admin_web"):
         if not _is_admin(chat_id):
             send_message(token, chat_id, "⛔ Admin only.")
             return
+        _udir_a  = get_user_dir(chat_id)
+        _uname_a = callback_query.get("from", {}).get("first_name", "") or chat_id
         sub = data[len("admin_"):]
         if sub == "web":
             web_url = os.environ.get("WEB_URL", "")
-            send_message(token, chat_id, f"🌐 [Open web panel]({web_url})" if web_url else "WEB_URL not configured.")
+            reply = f"🌐 [Open web panel]({web_url})" if web_url else "WEB_URL not configured."
+            send_message(token, chat_id, reply)
+            log_query(_udir_a, chat_id, _uname_a, f"[admin_web]", reply)
             return
         reply = cmd_admin(chat_id, [sub])
         if reply:
             send_message(token, chat_id, reply)
+            log_query(_udir_a, chat_id, _uname_a, f"[{data}]", reply)
         return
 
     if data.startswith("admin_delete_yes_") or data == "admin_delete_no":
+        _udir_a  = get_user_dir(chat_id)
+        _uname_a = callback_query.get("from", {}).get("first_name", "") or chat_id
         confirm_file = CONFIG_DIR / f"_delete_confirm_{chat_id}.json"
         confirm_file.unlink(missing_ok=True)
         if data == "admin_delete_no":
             send_message(token, chat_id, "👍 Deletion cancelled.")
+            log_query(_udir_a, chat_id, _uname_a, "[admin_delete_no]", "👍 Deletion cancelled.")
             return
         target_id = data[len("admin_delete_yes_"):]
         target_dir = CONFIG_DIR / "users" / target_id
@@ -1005,7 +1022,9 @@ def handle_callback(token, callback_query):
             pass
         import shutil
         shutil.rmtree(target_dir, ignore_errors=True)
-        send_message(token, chat_id, f"🗑️ *{target_name}* (`{target_id}`) has been deleted.")
+        conf = f"🗑️ *{target_name}* (`{target_id}`) has been deleted."
+        send_message(token, chat_id, conf)
+        log_query(_udir_a, chat_id, _uname_a, f"[admin_delete_yes {target_id}]", conf)
         return
 
     if data.startswith("stats_"):
@@ -3281,7 +3300,8 @@ def handle_message(token, message):
         if not text:
             return
 
-    persona = load_active_persona(_UDIR / "config.json")
+    persona    = load_active_persona(_UDIR / "config.json")
+    _user_name = message.get("from", {}).get("first_name", "") or chat_id
 
     # ── Admin quota amount reply ──────────────────────────────────────────────
     _quota_pending_file = CONFIG_DIR / f"_quota_pending_{chat_id}.json"
@@ -3340,7 +3360,9 @@ def handle_message(token, message):
             except Exception:
                 pass
             label = "unlimited" if new_allowance is None else f"${new_allowance:.2f}"
-            send_message(token, chat_id, f"✅ *{target_name}* (`{target_id}`) quota set to {label}.")
+            conf = f"✅ *{target_name}* (`{target_id}`) quota set to {label}."
+            send_message(token, chat_id, conf)
+            log_query(_UDIR, chat_id, _user_name, f"[admin quota {target_id} {text}]", conf)
         return
 
     # ── Admin delete confirmation ─────────────────────────────────────────────
@@ -3368,9 +3390,12 @@ def handle_message(token, message):
                     pass
             import shutil
             shutil.rmtree(target_dir, ignore_errors=True)
-            send_message(token, chat_id, f"🗑️ *{target_name}* (`{target_id}`) has been deleted.")
+            conf = f"🗑️ *{target_name}* (`{target_id}`) has been deleted."
+            send_message(token, chat_id, conf)
+            log_query(_UDIR, chat_id, _user_name, f"[admin delete {target_id} confirmed]", conf)
         else:
             send_message(token, chat_id, "👍 Deletion cancelled.")
+            log_query(_UDIR, chat_id, _user_name, "[admin delete cancelled]", "👍 Deletion cancelled.")
         return
 
     # ── Per-user rate limiting ────────────────────────────────────────────────
@@ -3479,7 +3504,6 @@ def handle_message(token, message):
 
     log.info(f"  → /{cmd} {args}")
 
-    _user_name = message.get("from", {}).get("first_name", "") or chat_id
     voice_text = None
 
     if cmd == "contact":
@@ -3580,6 +3604,8 @@ def handle_message(token, message):
             reply = cmd_trends(persona, days=30)
     elif cmd == "admin":
         reply = cmd_admin(chat_id, args)
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[admin panel shown]")
     else:
         reply = f"Unknown command `/{cmd}`. Try /help"
 
