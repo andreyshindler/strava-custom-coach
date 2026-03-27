@@ -718,6 +718,19 @@ def handle_callback(token, callback_query):
         send_message(token, chat_id, "🗑️ Training plan archived.\n\nUse /newplan to create a new one.")
         return
 
+    if data in ("leave_yes", "leave_no"):
+        if data == "leave_no":
+            send_message(token, chat_id, "👍 Cancelled. You're still here!")
+            return
+        udir = get_user_dir(chat_id)
+        _prev = _UDIR; _UDIR = udir
+        try:
+            reply = _do_leave(token, chat_id)
+        finally:
+            _UDIR = _prev
+        send_message(token, chat_id, reply)
+        return
+
     if data.startswith("wizard_"):
         udir = get_user_dir(chat_id)
         # Map callback data to equivalent text input
@@ -2734,23 +2747,28 @@ def _delete_confirm_file():
     return _UDIR / "pending_delete.txt"
 
 
-def _leave_confirm_file():
-    return _UDIR / "pending_leave.txt"
-
-
-def cmd_leave():
+def cmd_leave(token: str = "", chat_id: str = ""):
     """Ask for confirmation before revoking Strava access and deleting all data."""
-    _UDIR.mkdir(parents=True, exist_ok=True)
-    _leave_confirm_file().write_text("pending")
-    return (
+    msg = (
         "⚠️ *Are you sure you want to leave?*\n\n"
         "This will:\n"
         "— Revoke your Strava authorization\n"
         "— Delete all your data from this bot\n"
         "— Stop all coaching and notifications\n\n"
-        "This *cannot be undone*.\n\n"
-        "Reply *yes* to confirm or *no* to cancel."
+        "This *cannot be undone*."
     )
+
+    if token and chat_id:
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": msg, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [[
+                {"text": "✅ Yes, leave", "callback_data": "leave_yes"},
+                {"text": "❌ Cancel",     "callback_data": "leave_no"},
+            ]]},
+        })
+        return None
+
+    return msg + "\n\nReply *yes* to confirm or *no* to cancel."
 
 
 def _do_leave(token: str, chat_id: str):
@@ -3017,16 +3035,6 @@ def handle_message(token, message):
             send_message(token, chat_id, "👍 Deletion cancelled.")
         return
 
-    # ── Leave confirmation — must run before quota/auth checks ────────────────
-    if _leave_confirm_file().exists() and not text.startswith("/"):
-        if text.strip().lower() in ("yes", "y"):
-            reply = _do_leave(token, chat_id)
-            send_message(token, chat_id, reply)
-        else:
-            _leave_confirm_file().unlink()
-            send_message(token, chat_id, "👍 Cancelled. You're still here!")
-        return
-
     # ── Per-user rate limiting ────────────────────────────────────────────────
     # Determine the command key for quota check.
     # Plain-text messages (AI chat) use the "_chat" key.
@@ -3133,7 +3141,7 @@ def handle_message(token, message):
     elif cmd == "notify":
         reply = cmd_notify(_UDIR, args, token=token, chat_id=chat_id)
     elif cmd == "leave":
-        reply = cmd_leave()
+        reply = cmd_leave(token=token, chat_id=chat_id)
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":
