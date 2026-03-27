@@ -282,16 +282,25 @@ def cmd_quota(user_dir: Path) -> str:
     )
 
 
-def _topup_msg(new_allowance: float, spent: float) -> str:
-    """Build the top-up Telegram message with a percentage bar."""
+def _quota_bar(new_allowance: float, spent: float) -> str:
     pct_used   = (spent / new_allowance * 100) if new_allowance > 0 else 0
     pct_left   = max(0.0, 100 - pct_used)
     bar_filled = int(pct_used / 10)
     bar        = "█" * bar_filled + "░" * (10 - bar_filled)
+    return f"`{bar}` {pct_left:.0f}% remaining"
+
+def _topup_msg(new_allowance: float, spent: float) -> str:
     return (
         f"💰 *Your allowance has been topped up!*\n\n"
-        f"`{bar}` {pct_left:.0f}% remaining\n\n"
+        f"{_quota_bar(new_allowance, spent)}\n\n"
         f"Keep coaching! Use /help to see what I can do."
+    )
+
+def _decrease_msg(new_allowance: float, spent: float) -> str:
+    return (
+        f"ℹ️ *Your allowance has been adjusted.*\n\n"
+        f"{_quota_bar(new_allowance, spent)}\n\n"
+        f"Contact [@SuperMariooo](https://t.me/SuperMariooo) if you have questions."
     )
 
 
@@ -2858,15 +2867,17 @@ def cmd_admin(chat_id: str, args: list) -> str:
         token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         if token:
             if new_allowance is None or new_allowance > 0:
-                if adding or (prev_allowance and prev_allowance > 0):
-                    _, spent, _ = check_demo_quota(target_dir)
-                    user_msg = _topup_msg(new_allowance, spent)
-                else:
+                _, spent, _ = check_demo_quota(target_dir)
+                if not (prev_allowance and prev_allowance > 0):
                     user_msg = (
                         "✅ *Your account has been activated!*\n\n"
                         "You now have access to your AI coach.\n"
                         "Ask me anything or use /help to see what I can do."
                     )
+                elif adding or new_allowance >= prev_allowance:
+                    user_msg = _topup_msg(new_allowance, spent)
+                else:
+                    user_msg = _decrease_msg(new_allowance, spent)
             else:
                 user_msg = (
                     "⛔ *Your demo access has been paused.*\n\n"
@@ -3265,15 +3276,17 @@ def handle_message(token, message):
             _, _, prev_allowance = check_demo_quota(target_dir)
             set_demo_allowance(target_dir, new_allowance)
             if new_allowance is None or new_allowance > 0:
-                if adding or (prev_allowance and prev_allowance > 0):
-                    _, spent, _ = check_demo_quota(target_dir)
-                    user_msg = _topup_msg(new_allowance, spent)
-                else:
+                _, spent, _ = check_demo_quota(target_dir)
+                if not (prev_allowance and prev_allowance > 0):
                     user_msg = (
                         "✅ *Your account has been activated!*\n\n"
                         "You now have access to your AI coach.\n"
                         "Ask me anything or use /help to see what I can do."
                     )
+                elif adding or new_allowance >= prev_allowance:
+                    user_msg = _topup_msg(new_allowance, spent)
+                else:
+                    user_msg = _decrease_msg(new_allowance, spent)
             else:
                 user_msg = (
                     "⛔ *Your demo access has been paused.*\n\n"

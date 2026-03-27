@@ -437,22 +437,28 @@ def admin_set_quota(chat_id: str):
     if bot_token:
         new_allowance = quota.get("allowance_usd")
         if new_allowance is None or new_allowance > 0:
-            if adding or (prev_allowance and prev_allowance > 0):
-                spent = quota.get("spent_usd", 0.0)
-                pct_used   = (spent / new_allowance * 100) if new_allowance > 0 else 0
-                pct_left   = max(0.0, 100 - pct_used)
-                bar_filled = int(pct_used / 10)
-                bar        = "█" * bar_filled + "░" * (10 - bar_filled)
-                msg = (
-                    f"💰 *Your allowance has been topped up!*\n\n"
-                    f"`{bar}` {pct_left:.0f}% remaining\n\n"
-                    f"Keep coaching! Use /help to see what I can do."
-                )
-            else:
+            spent = quota.get("spent_usd", 0.0)
+            def _bar(allowance, s):
+                pu = (s / allowance * 100) if allowance > 0 else 0
+                pl = max(0.0, 100 - pu)
+                return f"`{'█' * int(pu/10)}{'░' * (10 - int(pu/10))}` {pl:.0f}% remaining"
+            if not (prev_allowance and prev_allowance > 0):
                 msg = (
                     "✅ *Your account has been activated!*\n\n"
                     "You now have access to your AI coach.\n"
                     "Ask me anything or use /help to see what I can do."
+                )
+            elif adding or new_allowance >= prev_allowance:
+                msg = (
+                    f"💰 *Your allowance has been topped up!*\n\n"
+                    f"{_bar(new_allowance, spent)}\n\n"
+                    f"Keep coaching! Use /help to see what I can do."
+                )
+            else:
+                msg = (
+                    f"ℹ️ *Your allowance has been adjusted.*\n\n"
+                    f"{_bar(new_allowance, spent)}\n\n"
+                    f"Contact [@SuperMariooo](https://t.me/SuperMariooo) if you have questions."
                 )
         else:
             msg = (
