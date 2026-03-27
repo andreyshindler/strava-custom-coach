@@ -325,10 +325,9 @@ def _build_strava_auth_url(nonce: str) -> str:
         "response_type":   "code",
         "redirect_uri":    callback,
         "approval_prompt": "force",
-        "scope":           "read,activity:read_all",
         "state":           nonce,
     })
-    return f"https://www.strava.com/oauth/authorize?{params}"
+    return f"https://www.strava.com/oauth/authorize?{params}&scope=read,activity:read_all"
 
 def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
     """Run the onboarding wizard for users who haven't connected Strava yet."""
