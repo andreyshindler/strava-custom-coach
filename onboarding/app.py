@@ -744,6 +744,9 @@ def webhook_event():
     owner_id    = event.get("owner_id")
     activity_id = event.get("object_id")
 
+    if not isinstance(owner_id, int):
+        return Response("EVENT_RECEIVED", 200)
+
     user_dir = _find_user_by_strava_id(owner_id)
     if not user_dir:
         print(f"[webhook] No user found for Strava owner_id={owner_id}")
