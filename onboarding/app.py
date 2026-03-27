@@ -438,9 +438,14 @@ def admin_set_quota(chat_id: str):
         new_allowance = quota.get("allowance_usd")
         if new_allowance is None or new_allowance > 0:
             if adding or (prev_allowance and prev_allowance > 0):
+                spent = quota.get("spent_usd", 0.0)
+                pct_used   = (spent / new_allowance * 100) if new_allowance > 0 else 0
+                pct_left   = max(0.0, 100 - pct_used)
+                bar_filled = int(pct_used / 10)
+                bar        = "█" * bar_filled + "░" * (10 - bar_filled)
                 msg = (
                     f"💰 *Your allowance has been topped up!*\n\n"
-                    f"New balance: *${new_allowance:.2f}*\n"
+                    f"`{bar}` {pct_left:.0f}% remaining\n\n"
                     f"Keep coaching! Use /help to see what I can do."
                 )
             else:

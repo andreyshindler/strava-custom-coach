@@ -282,6 +282,19 @@ def cmd_quota(user_dir: Path) -> str:
     )
 
 
+def _topup_msg(new_allowance: float, spent: float) -> str:
+    """Build the top-up Telegram message with a percentage bar."""
+    pct_used   = (spent / new_allowance * 100) if new_allowance > 0 else 0
+    pct_left   = max(0.0, 100 - pct_used)
+    bar_filled = int(pct_used / 10)
+    bar        = "█" * bar_filled + "░" * (10 - bar_filled)
+    return (
+        f"💰 *Your allowance has been topped up!*\n\n"
+        f"`{bar}` {pct_left:.0f}% remaining\n\n"
+        f"Keep coaching! Use /help to see what I can do."
+    )
+
+
 def check_demo_quota(user_dir: Path) -> tuple[bool, float, float | None]:
     """Return (allowed, spent_usd, allowance_usd). allowed=True when under quota or unlimited."""
     quota      = get_demo_quota(user_dir)
@@ -2846,11 +2859,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
         if token:
             if new_allowance is None or new_allowance > 0:
                 if adding or (prev_allowance and prev_allowance > 0):
-                    user_msg = (
-                        f"💰 *Your allowance has been topped up!*\n\n"
-                        f"New balance: *${new_allowance:.2f}*\n"
-                        f"Keep coaching! Use /help to see what I can do."
-                    )
+                    _, spent, _ = check_demo_quota(target_dir)
+                    user_msg = _topup_msg(new_allowance, spent)
                 else:
                     user_msg = (
                         "✅ *Your account has been activated!*\n\n"
@@ -3256,11 +3266,8 @@ def handle_message(token, message):
             set_demo_allowance(target_dir, new_allowance)
             if new_allowance is None or new_allowance > 0:
                 if adding or (prev_allowance and prev_allowance > 0):
-                    user_msg = (
-                        f"💰 *Your allowance has been topped up!*\n\n"
-                        f"New balance: *${new_allowance:.2f}*\n"
-                        f"Keep coaching! Use /help to see what I can do."
-                    )
+                    _, spent, _ = check_demo_quota(target_dir)
+                    user_msg = _topup_msg(new_allowance, spent)
                 else:
                     user_msg = (
                         "✅ *Your account has been activated!*\n\n"
