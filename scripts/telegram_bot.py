@@ -2827,6 +2827,7 @@ def cmd_admin(chat_id: str, args: list) -> str:
                 return f"Invalid amount `{raw}`. Use a number (e.g. `2.00`), `+2.00` to add, or `off`."
 
         target_dir.mkdir(parents=True, exist_ok=True)
+        _, _, prev_allowance = check_demo_quota(target_dir)
         set_demo_allowance(target_dir, new_allowance)
 
         # Resolve display name
@@ -2844,11 +2845,18 @@ def cmd_admin(chat_id: str, args: list) -> str:
         token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
         if token:
             if new_allowance is None or new_allowance > 0:
-                user_msg = (
-                    "✅ *Your account has been activated!*\n\n"
-                    "You now have access to your AI coach.\n"
-                    "Ask me anything or use /help to see what I can do."
-                )
+                if adding or (prev_allowance and prev_allowance > 0):
+                    user_msg = (
+                        f"💰 *Your allowance has been topped up!*\n\n"
+                        f"New balance: *${new_allowance:.2f}*\n"
+                        f"Keep coaching! Use /help to see what I can do."
+                    )
+                else:
+                    user_msg = (
+                        "✅ *Your account has been activated!*\n\n"
+                        "You now have access to your AI coach.\n"
+                        "Ask me anything or use /help to see what I can do."
+                    )
             else:
                 user_msg = (
                     "⛔ *Your demo access has been paused.*\n\n"
@@ -3244,13 +3252,21 @@ def handle_message(token, message):
                     return
             target_dir = CONFIG_DIR / "users" / target_id
             target_dir.mkdir(parents=True, exist_ok=True)
+            _, _, prev_allowance = check_demo_quota(target_dir)
             set_demo_allowance(target_dir, new_allowance)
             if new_allowance is None or new_allowance > 0:
-                user_msg = (
-                    "✅ *Your account has been activated!*\n\n"
-                    "You now have access to your AI coach.\n"
-                    "Ask me anything or use /help to see what I can do."
-                )
+                if adding or (prev_allowance and prev_allowance > 0):
+                    user_msg = (
+                        f"💰 *Your allowance has been topped up!*\n\n"
+                        f"New balance: *${new_allowance:.2f}*\n"
+                        f"Keep coaching! Use /help to see what I can do."
+                    )
+                else:
+                    user_msg = (
+                        "✅ *Your account has been activated!*\n\n"
+                        "You now have access to your AI coach.\n"
+                        "Ask me anything or use /help to see what I can do."
+                    )
             else:
                 user_msg = (
                     "⛔ *Your demo access has been paused.*\n\n"

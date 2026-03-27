@@ -417,6 +417,7 @@ def admin_set_quota(chat_id: str):
         return "User not found", 404
     quota_file = user_dir / "demo_quota.json"
     quota = json.loads(quota_file.read_text()) if quota_file.exists() else {}
+    prev_allowance = quota.get("allowance_usd")
     adding = raw.startswith("+")
     if raw in ("", "off", "unlimited"):
         quota["allowance_usd"] = None
@@ -424,7 +425,7 @@ def admin_set_quota(chat_id: str):
         try:
             amount = float(raw.lstrip("+"))
             if adding:
-                quota["allowance_usd"] = round((quota.get("allowance_usd") or 0.0) + amount, 2)
+                quota["allowance_usd"] = round((prev_allowance or 0.0) + amount, 2)
             else:
                 quota["allowance_usd"] = amount
         except ValueError:
@@ -436,11 +437,18 @@ def admin_set_quota(chat_id: str):
     if bot_token:
         new_allowance = quota.get("allowance_usd")
         if new_allowance is None or new_allowance > 0:
-            msg = (
-                "✅ *Your account has been activated!*\n\n"
-                "You now have access to your AI coach.\n"
-                "Ask me anything or use /help to see what I can do."
-            )
+            if adding or (prev_allowance and prev_allowance > 0):
+                msg = (
+                    f"💰 *Your allowance has been topped up!*\n\n"
+                    f"New balance: *${new_allowance:.2f}*\n"
+                    f"Keep coaching! Use /help to see what I can do."
+                )
+            else:
+                msg = (
+                    "✅ *Your account has been activated!*\n\n"
+                    "You now have access to your AI coach.\n"
+                    "Ask me anything or use /help to see what I can do."
+                )
         else:
             msg = (
                 "⛔ *Your demo access has been paused.*\n\n"
