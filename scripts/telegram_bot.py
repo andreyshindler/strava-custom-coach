@@ -695,7 +695,7 @@ def handle_callback(token, callback_query):
             send_message(token, chat_id, "👍 Your current plan is kept. Use /week to view it.")
             return
         udir = get_user_dir(chat_id)
-        (udir / "training_plan.json").unlink(missing_ok=True)
+        _archive_plan(udir)
         (udir / "plan_wizard_state.json").unlink(missing_ok=True)
         _prev = _UDIR; _UDIR = udir
         try:
@@ -712,11 +712,10 @@ def handle_callback(token, callback_query):
         if data == "deleteplan_cancel":
             send_message(token, chat_id, "👍 Cancelled. Your plan is safe.")
             return
-        plan_file = udir / "training_plan.json"
-        plan_file.unlink(missing_ok=True)
+        _archive_plan(udir)
         wf = udir / "plan_wizard_state.json"
         wf.unlink(missing_ok=True)
-        send_message(token, chat_id, "🗑️ Training plan deleted.\n\nUse /newplan to create a new one.")
+        send_message(token, chat_id, "🗑️ Training plan archived.\n\nUse /newplan to create a new one.")
         return
 
     if data.startswith("wizard_"):
@@ -1447,6 +1446,17 @@ def cmd_trends(persona, days=30):
         return f"_{persona['name']}: Focus on the basics — train consistently, recover well, trust the process._"
 
 
+def _archive_plan(udir: Path):
+    """Rename training_plan.json to training_plan_vN.json (next available version)."""
+    current = udir / "training_plan.json"
+    if not current.exists():
+        return
+    n = 1
+    while (udir / f"training_plan_v{n}.json").exists():
+        n += 1
+    current.rename(udir / f"training_plan_v{n}.json")
+
+
 def load_plan_safe():
     """Load training_plan.json safely. Returns {} on missing or corrupted file."""
     plan_file = _UDIR / "training_plan.json"
@@ -2110,6 +2120,7 @@ def generate_plan_from_wizard(state, persona):
             plan = build_plan(**kwargs)
 
         _UDIR.mkdir(parents=True, exist_ok=True)
+        _archive_plan(_UDIR)
         (_UDIR / "training_plan.json").write_text(json.dumps(plan, indent=2))
         clear_wizard()
 
@@ -3082,12 +3093,10 @@ def handle_message(token, message):
     # ── Check if awaiting delete confirmation ─────────────────────────────────
     if _delete_confirm_file().exists() and not text.startswith("/"):
         if text.strip().lower() in ("yes", "y"):
-            plan_file = _UDIR / "training_plan.json"
-            if plan_file.exists():
-                plan_file.unlink()
+            _archive_plan(_UDIR)
             _delete_confirm_file().unlink()
             send_message(token, chat_id,
-                f"✅ *Training plan deleted.*\n\n"
+                f"✅ *Training plan archived.*\n\n"
                 f"Use /newplan whenever you're ready to build a new one.\n\n"
                 f"— {persona['name']}")
         else:
