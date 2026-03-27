@@ -373,7 +373,7 @@ def admin():
                 "pct":        pct,
                 "queries":    queries,
                 "total_cost": round(total_cost, 4),
-                "last_query": _utc_to_local(last_query) if last_query else "—",
+                "last_query": last_query or "",
             })
     total   = len(users)
     strava  = sum(1 for u in users if u["strava"])
@@ -389,6 +389,8 @@ def admin():
 def admin_delete_user(chat_id: str):
     """Delete a user and all their data."""
     import shutil
+    if not re.match(r"^-?\d+$", chat_id):
+        return "Invalid chat_id", 400
     user_dir = USERS_DIR / chat_id
     if not user_dir.exists():
         return "User not found", 404
@@ -411,6 +413,8 @@ def admin_delete_user(chat_id: str):
 @require_admin
 def admin_set_quota(chat_id: str):
     """Set demo allowance for a user from the admin panel."""
+    if not re.match(r"^-?\d+$", chat_id):
+        return "Invalid chat_id", 400
     raw = request.form.get("allowance", "").strip().lower()
     user_dir = USERS_DIR / chat_id
     if not user_dir.exists():
@@ -448,7 +452,7 @@ def admin_set_quota(chat_id: str):
                     "You now have access to your AI coach.\n"
                     "Ask me anything or use /help to see what I can do."
                 )
-            elif adding or new_allowance >= prev_allowance:
+            elif adding or (new_allowance is not None and new_allowance >= prev_allowance):
                 msg = (
                     f"💰 *Your allowance has been topped up!*\n\n"
                     f"{_bar(new_allowance, spent)}\n\n"
@@ -774,16 +778,6 @@ def webhook_event():
         print(f"[webhook] Error processing activity {activity_id}: {e}")
 
     return Response("EVENT_RECEIVED", 200)
-
-
-def _utc_to_local(ts: str, offset_hours: int = 2) -> str:
-    """Convert UTC ISO timestamp string to local time display (UTC+offset)."""
-    try:
-        h = int(ts[11:13]) + offset_hours
-        day = ts[:10]
-        return f"{day} {h % 24:02d}:{ts[14:16]}"
-    except Exception:
-        return ts[:16].replace("T", " ")
 
 
 # ── Admin history API ─────────────────────────────────────────────────────────
