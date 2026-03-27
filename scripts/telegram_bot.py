@@ -799,6 +799,9 @@ def handle_callback(token, callback_query):
             # Temporarily set _UDIR for wizard helpers that rely on it
             _prev_udir = _UDIR
             _UDIR = udir
+            _ai_usage["input_tokens"] = 0
+            _ai_usage["output_tokens"] = 0
+            _ai_usage["cost_usd"] = 0.0
             try:
                 wizard = load_wizard()
                 if not wizard:
@@ -815,7 +818,9 @@ def handle_callback(token, callback_query):
                     _wizard_send(token, chat_id, reply, current_state)
                 if reply:
                     _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
-                    log_query(udir, chat_id, _user_name, f"[wizard:{data}]", reply)
+                    log_query(udir, chat_id, _user_name, f"[wizard:{data}]", reply,
+                              tokens_used=_ai_usage["input_tokens"] + _ai_usage["output_tokens"],
+                              cost_usd=_ai_usage["cost_usd"])
             finally:
                 _UDIR = _prev_udir
         return
@@ -3335,6 +3340,12 @@ def handle_message(token, message):
         send_typing(token, chat_id)  # refresh typing before slow Claude call
         reply = cmd_chat(text, persona)
         if reply:
+            _user_name = message.get("from", {}).get("first_name", "") or chat_id
+            log_query(
+                _UDIR, chat_id, _user_name, text, reply,
+                tokens_used=_ai_usage["input_tokens"] + _ai_usage["output_tokens"],
+                cost_usd=_ai_usage["cost_usd"],
+            )
             send_message(token, chat_id, reply)
         return
 
