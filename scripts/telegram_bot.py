@@ -2960,6 +2960,32 @@ def cmd_admin(chat_id: str, args: list) -> str:
         })
         return None
 
+    elif sub == "invite":
+        if not args:
+            return (
+                "Usage: `/admin invite <telegram_chat_id>`\n\n"
+                "Generates a one-time Strava auth link for an athlete.\n"
+                "Share the link with them — after they authorize, their account is created automatically."
+            )
+        target_id = args[0].strip()
+        import secrets as _sec
+        nonce = _sec.token_urlsafe(16)
+        nonce_dir = CONFIG_DIR / "nonces"
+        nonce_dir.mkdir(parents=True, exist_ok=True)
+        (nonce_dir / f"{nonce}.json").write_text(json.dumps({
+            "chat_id":   target_id,
+            "name":      "",
+            "weight_kg": 75,
+            "ftp":       200,
+        }))
+        auth_url = _build_strava_auth_url(nonce)
+        return (
+            f"✅ Invite link for `{target_id}`:\n\n"
+            f"{auth_url}\n\n"
+            f"_Link is one-time use. After the athlete authorizes, you'll get a notification._\n"
+            f"_Then run_ `/admin quota {target_id} <amount>` _to activate their account._"
+        )
+
     return f"Unknown admin sub-command `{sub}`. Try `/admin` for help."
 
 
