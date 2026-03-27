@@ -1346,3 +1346,97 @@ def build_xco_racing_plan(category, ftp, persona, start_date=None):
         })
 
     return plan
+
+
+def analyse_rides_for_plan(activities, known_ftp=200):
+    """Analyse last 90 days of rides to auto-suggest plan parameters."""
+    MTB_TYPES = {"MountainBikeRide", "EMountainBikeRide"}
+    CYCLING_TYPES = {"Ride", "VirtualRide", "MountainBikeRide", "GravelRide",
+                     "EBikeRide", "EMountainBikeRide", "Handcycle", "Velomobile"}
+
+    cutoff = datetime.now() - timedelta(days=90)
+    recent = []
+    for a in activities:
+        try:
+            d = datetime.strptime(a.get("start_date", "")[:10], "%Y-%m-%d")
+        except (ValueError, TypeError):
+            continue
+        if d >= cutoff and (a.get("sport_type") in CYCLING_TYPES or a.get("type") in CYCLING_TYPES):
+            recent.append((d, a))
+    if not recent:
+        return None
+
+    recent.sort(key=lambda x: x[0])
+    ride_count = len(recent)
+    span_days = max((recent[-1][0] - recent[0][0]).days, 7)
+    rides_per_week = round(ride_count / (span_days / 7), 1)
+
+    # FTP estimation
+    est_ftp, ftp_source = None, "no power data"
+    power_rides = [(d, a) for d, a in recent if a.get("average_watts", 0) > 50]
+    if power_rides:
+        med = [(d, a) for d, a in power_rides if 2700 <= a.get("moving_time", 0) <= 5400]
+        if med:
+            est_ftp = int(max(a["average_watts"] for _, a in med))
+            ftp_source = f"best {len(med)}-ride 45–90 min effort"
+        else:
+            est_ftp = int(max(a["average_watts"] for _, a in power_rides) * 0.88)
+            ftp_source = "estimated from power history"
+
+    # Weekly TSS (inline formula to avoid circular import with strava_api)
+    ftp_ref = est_ftp or known_ftp
+    weekly: dict = {}
+    for d, a in recent:
+        wk = d.strftime("%Y-W%W")
+        dur = a.get("moving_time", 0)
+        avg_watts = a.get("average_watts")
+        if avg_watts and ftp_ref:
+            np_est = avg_watts * 1.05
+            if_ = np_est / ftp_ref
+            tss = (dur * np_est * if_) / (ftp_ref * 3600) * 100
+        else:
+            hr = a.get("average_heartrate", 0)
+            if hr:
+                tss = (dur / 3600) * 50 * min(hr / 160, 1.2)
+            else:
+                tss = (dur / 3600) * 45
+        weekly[wk] = weekly.get(wk, 0) + round(tss)
+    avg_weekly_tss = int(sum(weekly.values()) / len(weekly)) if weekly else 0
+
+    # Ride type mix
+    mtb_count = sum(1 for _, a in recent
+                    if a.get("sport_type") in MTB_TYPES or a.get("type") in MTB_TYPES)
+    mtb_pct = mtb_count / ride_count
+    primary_type = "mtb" if mtb_pct >= 0.6 else ("mixed" if mtb_pct >= 0.3 else "road")
+
+    # Suggestions
+    suggested_goal = (
+        "xco_racing" if primary_type in ("mtb", "mixed") and avg_weekly_tss >= 150
+        else ("ftp" if avg_weekly_tss >= 250 else "general")
+    )
+    suggested_category = (
+        "pro_elite"    if avg_weekly_tss >= 700 else
+        "advanced"     if avg_weekly_tss >= 450 else
+        "intermediate" if avg_weekly_tss >= 250 else
+        "beginner"
+    )
+    suggested_weeks = (
+        20 if rides_per_week >= 5 and avg_weekly_tss >= 400 else
+        16 if rides_per_week >= 4 and avg_weekly_tss >= 250 else
+        12 if rides_per_week >= 3 else 8
+    )
+
+    return {
+        "ride_count":         ride_count,
+        "rides_per_week":     rides_per_week,
+        "avg_weekly_tss":     avg_weekly_tss,
+        "mtb_pct":            round(mtb_pct * 100),
+        "primary_type":       primary_type,
+        "est_ftp":            est_ftp,
+        "ftp_source":         ftp_source,
+        "has_power":          bool(power_rides),
+        "suggested_goal":     suggested_goal,
+        "suggested_category": suggested_category,
+        "suggested_weeks":    suggested_weeks,
+        "suggested_xco":      primary_type in ("mtb", "mixed"),
+    }

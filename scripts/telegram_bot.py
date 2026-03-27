@@ -780,6 +780,7 @@ def handle_callback(token, callback_query):
         mapping = {
             "wizard_goal_1": "1", "wizard_goal_2": "2", "wizard_goal_3": "3",
             "wizard_goal_4": "4", "wizard_goal_5": "5", "wizard_goal_6": "6",
+            "wizard_goal_7": "7",
             "wizard_xco_yes": "y", "wizard_xco_no": "n",
             "wizard_plan_classic": "classic", "wizard_plan_ai": "ai",
             "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
@@ -1612,6 +1613,7 @@ def _wizard_send(token, chat_id, reply, state):
                 [{"text": "4️⃣ Weight loss",       "callback_data": "wizard_goal_4"}],
                 [{"text": "5️⃣ General fitness",   "callback_data": "wizard_goal_5"}],
                 [{"text": "6️⃣ XCO Race Plan",     "callback_data": "wizard_goal_6"}],
+                [{"text": "7️⃣ Analyse my Strava data", "callback_data": "wizard_goal_7"}],
             ]},
         })
     elif step == "xco_category":
@@ -1727,12 +1729,56 @@ def handle_wizard(state, text, persona):
 
     # ── GOAL ──────────────────────────────────────────────────────────────────
     if step == "goal":
-        goals = {"1":"ftp","2":"event","3":"distance","4":"weight-loss","5":"general","6":"xco_racing"}
+        goals = {"1":"ftp","2":"event","3":"distance","4":"weight-loss","5":"general","6":"xco_racing","7":"strava_auto"}
         goal  = goals.get(text.strip())
         if not goal:
-            return "Please reply with a number *1–6*", False
+            return "Please reply with a number *1–7*", False
         state["goal"] = goal
         save_wizard(state)
+        if goal == "strava_auto":
+            from training_plan import analyse_rides_for_plan
+            config = load_config(_UDIR)
+            known_ftp = config.get("ftp", 200)
+            acts = get_activities(days=90, limit=200, user_dir=_UDIR)
+            if not acts:
+                state["step"] = "goal"
+                save_wizard(state)
+                return ("❌ No Strava rides found in cache.\n"
+                        "Run /refresh or /ride first, then try again."), False
+            analysis = analyse_rides_for_plan(acts, known_ftp)
+            if not analysis:
+                state["step"] = "goal"
+                save_wizard(state)
+                return "❌ Couldn't analyse rides. Make sure your Strava is synced.", False
+            state["strava_analysis"] = analysis
+            state["step"] = "strava_review"
+            save_wizard(state)
+            sg = analysis["suggested_goal"]
+            cat = analysis.get("suggested_category", "beginner")
+            if analysis["est_ftp"]:
+                ftp_s = f"~{analysis['est_ftp']}W ({analysis['ftp_source']})"
+            else:
+                ftp_s = "unknown (no power data)"
+            goal_label = {
+                "xco_racing": f"XCO Race Plan ({cat})",
+                "ftp":        "Improve FTP",
+                "general":    "General fitness",
+            }.get(sg, sg)
+            no_power_warn = ("⚠️ No power meter detected — FTP is a rough estimate from HR/duration.\n\n"
+                             if not analysis["has_power"] else "")
+            return (
+                f"📊 *Strava analysis — last 90 days ({analysis['ride_count']} rides)*\n\n"
+                f"⚡ Est\\. FTP:      *{ftp_s}*\n"
+                f"📅 Weekly TSS:   *~{analysis['avg_weekly_tss']} TSS/week*\n"
+                f"🚴 Rides/week:   *{analysis['rides_per_week']}×*\n"
+                f"🏔 Ride type:    *{analysis['primary_type'].title()}* ({analysis['mtb_pct']}% MTB)\n\n"
+                f"*Suggested plan:*\n"
+                f"  🎯 Goal:      *{goal_label}*\n"
+                f"  📅 Duration:  *{analysis['suggested_weeks']} weeks*\n"
+                f"  {'💪 XCO gym included' if analysis['suggested_xco'] else '🚴 Cycling only'}\n\n"
+                f"{no_power_warn}"
+                f"Reply with your FTP in watts to confirm, or *0* to use the suggestion:"
+            ), False
         if goal == "xco_racing":
             state["step"] = "xco_category"
             save_wizard(state)
@@ -1786,6 +1832,30 @@ def handle_wizard(state, text, persona):
             f"• Advanced: 320W+\n\n"
             f"Reply with your FTP in watts, or *0* if unknown (we'll use 200W)"
         ), False
+
+    # ── STRAVA REVIEW ─────────────────────────────────────────────────────────
+    elif step == "strava_review":
+        analysis = state.get("strava_analysis", {})
+        try:
+            ftp = int(text.strip())
+        except ValueError:
+            return "Please reply with your FTP in watts (or *0* to use the suggestion)", False
+        if ftp == 0:
+            ftp = analysis.get("est_ftp") or 200
+        sg  = analysis.get("suggested_goal", "general")
+        state["ftp"]  = ftp
+        state["goal"] = sg
+        state["xco"]  = analysis.get("suggested_xco", False)
+        if sg == "xco_racing":
+            from training_plan import XCO_RACING_PLANS
+            state["xco_category"] = analysis.get("suggested_category", "beginner")
+            state["weeks"] = XCO_RACING_PLANS[state["xco_category"]]["weeks"]
+        else:
+            state["weeks"]     = analysis.get("suggested_weeks", 12)
+            state["plan_type"] = "classic"
+        state["step"] = "confirm"
+        save_wizard(state)
+        return build_confirm_message(state), False
 
     # ── FTP ───────────────────────────────────────────────────────────────────
     elif step == "ftp":
