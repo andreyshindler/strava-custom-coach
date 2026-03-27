@@ -1042,7 +1042,12 @@ def handle_callback(token, callback_query):
 
         ok, result = send_voice(token, chat_id, voice_text, persona["id"])
         _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
-        log_query(udir, chat_id, _user_name, "[voice]", voice_text if ok else f"[voice failed: {result}]")
+        if ok:
+            _wav = Path("/tmp/coach_voice.wav")
+            _size = f"{round(_wav.stat().st_size / 1024, 1)} KB" if _wav.exists() else "unknown size"
+            log_query(udir, chat_id, _user_name, "[voice]", f"[voice sent: coach_voice.wav {_size}] {voice_text}")
+        else:
+            log_query(udir, chat_id, _user_name, "[voice]", f"[voice failed: {result}]")
         if not ok:
             send_message(token, chat_id, f"⚠️ Could not generate voice: {result}")
 
@@ -3511,6 +3516,10 @@ def handle_message(token, message):
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
     elif cmd == "voice":
         reply = cmd_voice(persona, chat_id, token)
+        if reply is None:
+            _wav = Path("/tmp/coach_voice.wav")
+            _size = f"{round(_wav.stat().st_size / 1024, 1)} KB" if _wav.exists() else "unknown size"
+            log_query(_UDIR, chat_id, _user_name, text, f"[voice sent: coach_voice.wav {_size}]")
     elif cmd in ("plan", "today"):
         if args and args[0].lower() == "xco":
             result = cmd_plan_xco(persona)
