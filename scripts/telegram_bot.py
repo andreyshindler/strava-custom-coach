@@ -755,8 +755,11 @@ def handle_callback(token, callback_query):
     tg_api_json(token, "answerCallbackQuery", {"callback_query_id": query_id})
 
     if data in ("newplan_replace_yes", "newplan_replace_no"):
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
         if data == "newplan_replace_no":
-            send_message(token, chat_id, "👍 Your current plan is kept. Use /week to view it.")
+            reply = "👍 Your current plan is kept. Use /week to view it."
+            send_message(token, chat_id, reply)
+            log_query(get_user_dir(chat_id), chat_id, _user_name, "[newplan_replace_no]", reply)
             return
         udir = get_user_dir(chat_id)
         _archive_plan(udir)
@@ -767,24 +770,32 @@ def handle_callback(token, callback_query):
             cmd_newplan(persona, token=token, chat_id=chat_id)
         finally:
             _UDIR = _prev
+        log_query(udir, chat_id, _user_name, "[newplan_replace_yes]", "/newplan wizard started (replaced)")
         return
 
     if data in ("deleteplan_confirm", "deleteplan_cancel"):
         udir = get_user_dir(chat_id)
         df = udir / "pending_delete.txt"
         df.unlink(missing_ok=True)
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
         if data == "deleteplan_cancel":
-            send_message(token, chat_id, "👍 Cancelled. Your plan is safe.")
+            reply = "👍 Cancelled. Your plan is safe."
+            send_message(token, chat_id, reply)
+            log_query(udir, chat_id, _user_name, "[deleteplan_cancel]", reply)
             return
         _archive_plan(udir)
         wf = udir / "plan_wizard_state.json"
         wf.unlink(missing_ok=True)
-        send_message(token, chat_id, "🗑️ Training plan archived.\n\nUse /newplan to create a new one.")
+        reply = "🗑️ Training plan archived.\n\nUse /newplan to create a new one."
+        send_message(token, chat_id, reply)
+        log_query(udir, chat_id, _user_name, "[deleteplan_confirm]", reply)
         return
 
     if data in ("leave_yes", "leave_no"):
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
         if data == "leave_no":
             send_message(token, chat_id, "👍 Cancelled. You're still here!")
+            log_query(get_user_dir(chat_id), chat_id, _user_name, "[leave_no]", "Cancelled. You're still here!")
             return
         udir = get_user_dir(chat_id)
         _prev = _UDIR; _UDIR = udir
@@ -792,6 +803,7 @@ def handle_callback(token, callback_query):
             reply = _do_leave(token, chat_id)
         finally:
             _UDIR = _prev
+        log_query(udir, chat_id, _user_name, "[leave_yes]", reply)
         send_message(token, chat_id, reply)
         return
 
@@ -854,7 +866,10 @@ def handle_callback(token, callback_query):
             return
         save_active_persona(new_id, udir / "config.json")
         p = PERSONAS[new_id]
-        send_message(token, chat_id, f"✅ *Coach switched to {p['name']}*\n\n{p['greeting']}")
+        reply = f"✅ *Coach switched to {p['name']}*\n\n{p['greeting']}"
+        send_message(token, chat_id, reply)
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+        log_query(udir, chat_id, _user_name, f"[coach:{new_id}]", reply)
         return
 
     if data in ("notify_on", "notify_off"):
@@ -862,6 +877,8 @@ def handle_callback(token, callback_query):
         reply = cmd_notify(udir, [data[len("notify_"):]])
         if reply:
             send_message(token, chat_id, reply)
+            _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+            log_query(udir, chat_id, _user_name, f"[{data}]", reply)
         return
 
     if data in ("notifyplan_on", "notifyplan_off"):
@@ -870,6 +887,8 @@ def handle_callback(token, callback_query):
         reply = cmd_notifyplan(udir, [arg])
         if reply:
             send_message(token, chat_id, reply)
+            _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+            log_query(udir, chat_id, _user_name, f"[{data}]", reply)
         return
 
     if data in ("admin_pick_quota", "admin_pick_delete"):
@@ -989,6 +1008,23 @@ def handle_callback(token, callback_query):
         send_message(token, chat_id, f"🗑️ *{target_name}* (`{target_id}`) has been deleted.")
         return
 
+    if data.startswith("stats_"):
+        days_str = data[len("stats_"):]
+        if not days_str.isdigit():
+            return
+        udir = get_user_dir(chat_id)
+        persona = load_active_persona(udir / "config.json")
+        _prev = _UDIR; _UDIR = udir
+        try:
+            reply = cmd_stats(persona, days=int(days_str))
+        finally:
+            _UDIR = _prev
+        if reply:
+            _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+            log_query(udir, chat_id, _user_name, f"/stats {days_str}", reply)
+            send_message(token, chat_id, reply)
+        return
+
     if data == "voice":
         udir = get_user_dir(chat_id)
         persona = load_active_persona(udir / "config.json")
@@ -1005,6 +1041,8 @@ def handle_callback(token, callback_query):
             voice_text = quotes.get(persona["id"], "Get on the bike.")
 
         ok, result = send_voice(token, chat_id, voice_text, persona["id"])
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+        log_query(udir, chat_id, _user_name, "[voice]", voice_text if ok else f"[voice failed: {result}]")
         if not ok:
             send_message(token, chat_id, f"⚠️ Could not generate voice: {result}")
 
@@ -3398,16 +3436,22 @@ def handle_message(token, message):
 
     # ── Check if awaiting delete confirmation ─────────────────────────────────
     if _delete_confirm_file().exists() and not text.startswith("/"):
+        _user_name = message.get("from", {}).get("first_name", "") or chat_id
         if text.strip().lower() in ("yes", "y"):
             _archive_plan(_UDIR)
             _delete_confirm_file().unlink()
-            send_message(token, chat_id,
+            reply = (
                 f"✅ *Training plan archived.*\n\n"
                 f"Use /newplan whenever you're ready to build a new one.\n\n"
-                f"— {persona['name']}")
+                f"— {persona['name']}"
+            )
+            send_message(token, chat_id, reply)
+            log_query(_UDIR, chat_id, _user_name, text, reply)
         else:
             _delete_confirm_file().unlink()
-            send_message(token, chat_id, "👍 Deletion cancelled. Your plan is safe.")
+            reply = "👍 Deletion cancelled. Your plan is safe."
+            send_message(token, chat_id, reply)
+            log_query(_UDIR, chat_id, _user_name, text, reply)
         return
 
     # ── Plain text — AI coaching chat ─────────────────────────────────────────
