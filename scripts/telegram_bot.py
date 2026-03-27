@@ -813,6 +813,9 @@ def handle_callback(token, callback_query):
                 else:
                     current_state = load_wizard()
                     _wizard_send(token, chat_id, reply, current_state)
+                if reply:
+                    _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+                    log_query(udir, chat_id, _user_name, f"[wizard:{data}]", reply)
             finally:
                 _UDIR = _prev_udir
         return
@@ -3308,6 +3311,9 @@ def handle_message(token, message):
             else:
                 current_state = load_wizard()
                 _wizard_send(token, chat_id, reply, current_state)
+            if reply is not None:
+                _user_name = message.get("from", {}).get("first_name", "") or chat_id
+                log_query(_UDIR, chat_id, _user_name, text, reply)
             return
 
     # ── Check if awaiting delete confirmation ─────────────────────────────────
@@ -3382,6 +3388,10 @@ def handle_message(token, message):
         with _wizard_lock(_UDIR):
             clear_wizard()
             reply = cmd_newplan(persona, token=token, chat_id=chat_id)
+        if reply is None:
+            _user_name = message.get("from", {}).get("first_name", "") or chat_id
+            log_query(_UDIR, chat_id, _user_name, text, "/newplan wizard started")
+            reply = None  # keep None so the bottom block doesn't double-send
     elif cmd == "deleteplan":
         result = cmd_deleteplan(persona, token=token, chat_id=chat_id)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
