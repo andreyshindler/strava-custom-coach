@@ -2980,7 +2980,7 @@ def cmd_admin(chat_id: str, args: list) -> str:
         auth_url = _build_strava_auth_url(nonce)
         return (
             f"✅ Invite link for `{target_id}`:\n\n"
-            f"{auth_url}\n\n"
+            f"[Authorize Strava]({auth_url})\n\n"
             f"_Link is one-time use. After the athlete authorizes, you'll get a notification._\n"
             f"_Then run_ `/admin quota {target_id} <amount>` _to activate their account._"
         )
