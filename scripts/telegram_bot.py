@@ -3474,6 +3474,7 @@ def handle_message(token, message):
 
     log.info(f"  → /{cmd} {args}")
 
+    _user_name = message.get("from", {}).get("first_name", "") or chat_id
     voice_text = None
 
     if cmd == "contact":
@@ -3488,15 +3489,23 @@ def handle_message(token, message):
         reply = cmd_quota(_UDIR)
     elif cmd == "notify":
         reply = cmd_notify(_UDIR, args, token=token, chat_id=chat_id)
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[notify toggle shown]")
     elif cmd == "notifyplan":
         reply = cmd_notifyplan(_UDIR, args, token=token, chat_id=chat_id)
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[notifyplan toggle shown]")
     elif cmd == "leave":
         reply = cmd_leave(token=token, chat_id=chat_id)
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[leave confirm shown]")
     elif cmd == "help":
         reply = cmd_help(persona)
     elif cmd == "coach":
         reply = cmd_coach(args, persona, token=token, chat_id=chat_id)
         persona = load_active_persona(_UDIR / "config.json")
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[coach picker shown]")
     elif cmd == "ride":
         result = cmd_ride(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
@@ -3552,6 +3561,7 @@ def handle_message(token, message):
                 ]},
             })
             reply = None
+            log_query(_UDIR, chat_id, _user_name, text, "[stats period picker shown]")
     elif cmd in ("stats30", "month"):
         reply = cmd_stats(persona, days=30)
     elif cmd == "trends":
@@ -3565,8 +3575,6 @@ def handle_message(token, message):
         reply = f"Unknown command `/{cmd}`. Try /help"
 
     if reply is not None:
-        # Resolve display name
-        _user_name = message.get("from", {}).get("first_name", "") or chat_id
         log_query(
             _UDIR, chat_id, _user_name, text, reply,
             tokens_used=_ai_usage["input_tokens"] + _ai_usage["output_tokens"],
