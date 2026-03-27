@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "agent",
+            "if": "Bash(git push*)",
+            "prompt": "A git push just completed. Check what was pushed by running 'git show --stat HEAD' and 'git log --oneline -5'. Then read CLAUDE.md. If the pushed changes affect anything documented in CLAUDE.md — commands, architecture, component map, data flows, environment variables, key design decisions, or admin features — update CLAUDE.md to reflect the current state of the code. If CLAUDE.md is already accurate, or only unrelated files changed, do nothing. Do NOT update CLAUDE.md if the push only contained changes to CLAUDE.md itself (to avoid loops).",
+            "timeout": 120,
+            "statusMessage": "Reviewing CLAUDE.md for needed updates..."
+          }
+        ]
+      }
+    ]
+  }
+}
