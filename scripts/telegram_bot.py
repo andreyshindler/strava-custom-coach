@@ -2786,7 +2786,7 @@ def cmd_admin(chat_id: str, args: list) -> str:
 
     if sub == "quota":
         if len(args) < 2:
-            return "Usage: `/admin quota <user_chat_id> [amount_usd|off]`"
+            return "Usage: `/admin quota <user_chat_id> [amount|+amount|off]`"
 
         target_id = args[1]
         target_dir = CONFIG_DIR / "users" / target_id
@@ -2808,17 +2808,23 @@ def cmd_admin(chat_id: str, args: list) -> str:
                 f"  Remaining: ${remaining:.4f}"
             )
 
-        # Set quota
+        # Set or add quota
         raw = args[2].lower()
+        adding = raw.startswith("+")
         if raw == "off":
             new_allowance = None
         else:
             try:
-                new_allowance = float(raw)
-                if new_allowance < 0:
+                amount = float(raw.lstrip("+"))
+                if amount < 0:
                     return "Allowance must be >= 0."
+                if adding:
+                    _, _, current = check_demo_quota(target_dir)
+                    new_allowance = round((current or 0.0) + amount, 2)
+                else:
+                    new_allowance = amount
             except ValueError:
-                return f"Invalid amount `{raw}`. Use a number (e.g. `2.00`) or `off`."
+                return f"Invalid amount `{raw}`. Use a number (e.g. `2.00`), `+2.00` to add, or `off`."
 
         target_dir.mkdir(parents=True, exist_ok=True)
         set_demo_allowance(target_dir, new_allowance)
@@ -2855,7 +2861,8 @@ def cmd_admin(chat_id: str, args: list) -> str:
 
         if new_allowance is None:
             return f"✅ *{target_name}* (`{target_id}`) quota removed — unlimited access."
-        return f"✅ *{target_name}* (`{target_id}`) demo allowance set to ${new_allowance:.2f}."
+        verb = "topped up to" if adding else "set to"
+        return f"✅ *{target_name}* (`{target_id}`) allowance {verb} ${new_allowance:.2f}."
 
     if sub == "users":
         users_dir = CONFIG_DIR / "users"
