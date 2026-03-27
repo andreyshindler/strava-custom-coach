@@ -779,7 +779,7 @@ def handle_callback(token, callback_query):
         # Map callback data to equivalent text input
         mapping = {
             "wizard_goal_1": "1", "wizard_goal_2": "2", "wizard_goal_3": "3",
-            "wizard_goal_4": "4", "wizard_goal_5": "5",
+            "wizard_goal_4": "4", "wizard_goal_5": "5", "wizard_goal_6": "6",
             "wizard_xco_yes": "y", "wizard_xco_no": "n",
             "wizard_plan_classic": "classic", "wizard_plan_ai": "ai",
             "wizard_confirm_yes": "yes", "wizard_confirm_no": "no",
@@ -788,6 +788,8 @@ def handle_callback(token, callback_query):
         }
         if data.startswith("wizard_weeks_"):
             equivalent = data[len("wizard_weeks_"):]
+        elif data.startswith("wizard_xco_cat_"):
+            equivalent = data[len("wizard_xco_cat_"):]
         else:
             equivalent = mapping.get(data)
         if not equivalent:
@@ -1609,6 +1611,17 @@ def _wizard_send(token, chat_id, reply, state):
                 [{"text": "3️⃣ Distance target",   "callback_data": "wizard_goal_3"}],
                 [{"text": "4️⃣ Weight loss",       "callback_data": "wizard_goal_4"}],
                 [{"text": "5️⃣ General fitness",   "callback_data": "wizard_goal_5"}],
+                [{"text": "6️⃣ XCO Race Plan",     "callback_data": "wizard_goal_6"}],
+            ]},
+        })
+    elif step == "xco_category":
+        tg_api_json(token, "sendMessage", {
+            "chat_id": chat_id, "text": reply, "parse_mode": "Markdown",
+            "reply_markup": {"inline_keyboard": [
+                [{"text": "1️⃣ Beginner — Cat 4-3  (16 wks)",    "callback_data": "wizard_xco_cat_1"}],
+                [{"text": "2️⃣ Intermediate — Cat 2-1  (20 wks)","callback_data": "wizard_xco_cat_2"}],
+                [{"text": "3️⃣ Advanced — Cat 1/Elite  (24 wks)","callback_data": "wizard_xco_cat_3"}],
+                [{"text": "4️⃣ Pro / Elite  (32 wks)",           "callback_data": "wizard_xco_cat_4"}],
             ]},
         })
     elif step == "weeks":
@@ -1714,11 +1727,24 @@ def handle_wizard(state, text, persona):
 
     # ── GOAL ──────────────────────────────────────────────────────────────────
     if step == "goal":
-        goals = {"1":"ftp","2":"event","3":"distance","4":"weight-loss","5":"general"}
+        goals = {"1":"ftp","2":"event","3":"distance","4":"weight-loss","5":"general","6":"xco_racing"}
         goal  = goals.get(text.strip())
         if not goal:
-            return "Please reply with a number *1–5*", False
+            return "Please reply with a number *1–6*", False
         state["goal"] = goal
+        save_wizard(state)
+        if goal == "xco_racing":
+            state["step"] = "xco_category"
+            save_wizard(state)
+            return (
+                f"✅ Goal: *XCO Race Plan*\n\n"
+                f"*STEP 2: Choose your racing category*\n\n"
+                f"1️⃣ *Beginner* — Cat 4-3 · 16 weeks · 4-8 hrs/week\n"
+                f"2️⃣ *Intermediate* — Cat 2-1 · 20 weeks · 8-12 hrs/week\n"
+                f"3️⃣ *Advanced* — Cat 1/Elite Amateur · 24 weeks · 12-16 hrs/week\n"
+                f"4️⃣ *Pro / Elite* — World Cup/National · 32 weeks · 15-25 hrs/week\n\n"
+                f"Reply *1–4* or tap a button below"
+            ), False
         state["step"] = "ftp"
         save_wizard(state)
         return (
@@ -1726,6 +1752,33 @@ def handle_wizard(state, text, persona):
             f"*STEP 2: What is your current FTP?*\n\n"
             f"FTP = the max power you can sustain for ~1 hour.\n"
             f"It sets all your training zones.\n\n"
+            f"Typical ranges:\n"
+            f"• Beginner: 100–180W\n"
+            f"• Recreational: 180–250W\n"
+            f"• Enthusiast: 250–320W\n"
+            f"• Advanced: 320W+\n\n"
+            f"Reply with your FTP in watts, or *0* if unknown (we'll use 200W)"
+        ), False
+
+    # ── XCO CATEGORY ──────────────────────────────────────────────────────────
+    elif step == "xco_category":
+        cats = {"1": "beginner", "2": "intermediate", "3": "advanced", "4": "pro_elite"}
+        cat  = cats.get(text.strip())
+        if not cat:
+            return "Please choose a category *1–4*", False
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from training_plan import XCO_RACING_PLANS
+        meta = XCO_RACING_PLANS[cat]
+        state["xco_category"] = cat
+        state["weeks"]        = meta["weeks"]
+        state["step"]         = "ftp"
+        save_wizard(state)
+        return (
+            f"✅ Category: *{meta['label']}* ({meta['category']})\n"
+            f"   {meta['weeks']} weeks · {meta['hours_range']} · {meta['tss_range']}\n\n"
+            f"*STEP 3: What is your current FTP?*\n\n"
+            f"FTP = the max power you can sustain for ~1 hour.\n"
+            f"It calibrates all power zones in your plan.\n\n"
             f"Typical ranges:\n"
             f"• Beginner: 100–180W\n"
             f"• Recreational: 180–250W\n"
@@ -1742,6 +1795,10 @@ def handle_wizard(state, text, persona):
                 ftp = state["ftp_confirm_pending"]
                 del state["ftp_confirm_pending"]
                 state["ftp"] = ftp
+                if state.get("goal") == "xco_racing":
+                    state["step"] = "confirm"
+                    save_wizard(state)
+                    return build_confirm_message(state), False
                 state["step"] = "weeks"
                 save_wizard(state)
                 return (
@@ -1778,6 +1835,10 @@ def handle_wizard(state, text, persona):
             )
 
         state["ftp"] = ftp
+        if state.get("goal") == "xco_racing":
+            state["step"] = "confirm"
+            save_wizard(state)
+            return build_confirm_message(state), False
         state["step"] = "weeks"
         save_wizard(state)
         return (
@@ -2035,9 +2096,26 @@ def _build_plan_type_message(state):
 
 
 def build_confirm_message(state):
+    goal = state.get("goal", "general")
+    if goal == "xco_racing":
+        sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+        from training_plan import XCO_RACING_PLANS
+        cat  = state.get("xco_category", "beginner")
+        meta = XCO_RACING_PLANS.get(cat, {})
+        lines = [
+            "✅ *Plan Summary — confirm to build*\n",
+            f"🎯 Goal: *XCO Race Plan*",
+            f"🏆 Category: *{meta.get('label', cat)}* ({meta.get('category', '')})",
+            f"⚡ FTP: *{state.get('ftp', 220)}W*",
+            f"📅 Duration: *{meta.get('weeks', state.get('weeks', 16))} weeks* (fixed)",
+            f"⏱ Volume: *{meta.get('hours_range', '')}*",
+            f"📊 Target TSS: *{meta.get('tss_range', '')}*",
+        ]
+        lines.append("\nReply *y* to build this plan or *n* to cancel")
+        return "\n".join(lines)
     lines = [
         "✅ *Plan Summary — confirm to build*\n",
-        f"🎯 Goal: *{state.get('goal','general')}*",
+        f"🎯 Goal: *{goal}*",
         f"⚡ FTP: *{state.get('ftp', 220)}W*",
         f"📅 Duration: *{state.get('weeks', 8)} weeks*",
         f"💪 XCO Power: *{'Yes' if state.get('xco') else 'No'}*",
@@ -2160,7 +2238,7 @@ def _generate_ai_plan(state, persona):
 def generate_plan_from_wizard(state, persona):
     """Build and save the plan from wizard state."""
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from training_plan import build_plan, build_xco_plan
+    from training_plan import build_plan, build_xco_plan, build_xco_racing_plan
 
     goal      = state.get("goal", "general")
     ftp       = state.get("ftp", 220)
@@ -2178,7 +2256,12 @@ def generate_plan_from_wizard(state, persona):
     )
 
     try:
-        if use_ai:
+        if goal == "xco_racing":
+            plan = build_xco_racing_plan(
+                category=state.get("xco_category", "beginner"),
+                ftp=ftp, persona=persona,
+            )
+        elif use_ai:
             plan = _generate_ai_plan(state, persona)
         elif xco:
             plan = build_xco_plan(**{k: v for k, v in kwargs.items() if k not in ("target_km","target_kg")})
@@ -2192,11 +2275,17 @@ def generate_plan_from_wizard(state, persona):
 
         # Show first week preview
         first_week = plan["weekly_plans"][0] if plan.get("weekly_plans") else {}
-        gen_label = "🤖 AI-generated" if use_ai else "📋 Classic"
+        if goal == "xco_racing":
+            from training_plan import XCO_RACING_PLANS
+            cat_meta = XCO_RACING_PLANS.get(state.get("xco_category", "beginner"), {})
+            gen_label = f"🏔 {cat_meta.get('label', 'XCO')} Plan"
+            weeks = plan["weeks"]
+        else:
+            gen_label = "🤖 AI-generated" if use_ai else "📋 Classic"
         lines = [
             f"✅ *Plan created and saved!* ({gen_label})\n",
             f"📅 {weeks} weeks starting {plan['start_date']}",
-            f"{'💪 XCO Power included' if xco else '🚴 Cycling only'}",
+            f"{'💪 XCO Race Plan' if goal == 'xco_racing' else ('💪 XCO Power included' if xco else '🚴 Cycling only')}",
             f"\n*Week 1 preview:*",
         ]
         for day in first_week.get("days", []):

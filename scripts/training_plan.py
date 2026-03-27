@@ -30,6 +30,7 @@ POWER_ZONES = {
     4: (0.90, 1.05,  "Threshold"),
     5: (1.05, 1.20,  "VO2 Max"),
     6: (1.20, 1.50,  "Anaerobic"),
+    7: (1.50, 9.99,  "Neuromuscular"),
 }
 
 # ── Workout library (descriptions injected from persona at runtime) ──────────
@@ -724,3 +725,624 @@ def print_xco_plan(plan, persona):
     print("  Weeks 40-75%:  BUILD — Explosive power + high intensity bike")
     print("  Weeks 75-100%: PEAK  — Race-specific sprints + taper gym volume")
     print()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# XCO RACING PLANS
+# Structured race-prep plans by category: Beginner / Intermediate / Advanced / Pro
+# Fixed phase structures (not repeating 4-week cycles)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+XCO_RACING_WORKOUTS = {
+    # ── REST ──────────────────────────────────────────────────────────────────
+    "rest": {
+        "name": "Rest Day", "duration_min": 0, "tss_per_hour": 0, "zone": 0,
+        "type": "rest", "description": "Complete rest.",
+    },
+
+    # ── BEGINNER ──────────────────────────────────────────────────────────────
+    "xco_active_recovery": {
+        "name": "Active Recovery Spin", "duration_min": 30, "tss_per_hour": 20,
+        "zone": 1, "type": "bike",
+        "description": "Very easy spin, Z1 only. Flush the legs, no effort.",
+    },
+    "xco_z1_z2_mtb": {
+        "name": "Z1-Z2 MTB Ride", "duration_min": 50, "tss_per_hour": 40,
+        "zone": 2, "type": "bike",
+        "description": "Easy trail ride, stay in Z1-Z2. Focus on smooth pedalling and body position.",
+    },
+    "xco_core_mobility": {
+        "name": "Core & Mobility", "duration_min": 30, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Plank, dead bug, hip mobility, band work. Keep it light and controlled.",
+    },
+    "xco_z2_road": {
+        "name": "Z2 Road/Gravel Spin", "duration_min": 60, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "Steady Z2 on road or gravel. Aerobic base. Keep HR and power in check.",
+    },
+    "xco_mtb_skills_long": {
+        "name": "Z2 MTB Trail Ride 90 min", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "90 min trail ride, Z2 effort. Practice cornering and trail flow.",
+    },
+    "xco_z2_tempo": {
+        "name": "Z2 + 2x8 min Z3 Tempo", "duration_min": 75, "tss_per_hour": 65,
+        "zone": 3, "type": "bike",
+        "description": "Warm up 20 min, then 2x8 min at Z3 tempo pace with 5 min easy between. Cool down.",
+    },
+    "xco_strength": {
+        "name": "Strength: Squats/Deadlifts/Lunges", "duration_min": 45, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "3x10 goblet squat, 3x8 Romanian deadlift, 3x10 reverse lunge each leg.",
+    },
+    "xco_z2_endurance": {
+        "name": "Z2 Endurance 75 min", "duration_min": 75, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "Steady Z2 endurance ride. Build aerobic base. No hard efforts.",
+    },
+    "xco_mtb_skills_2hr": {
+        "name": "MTB Skills + 2hr Z2 Ride", "duration_min": 120, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2 hrs on trail, mostly Z2. Spend 20 min on skills: corners, drops, rock gardens.",
+    },
+    "xco_z1_spin": {
+        "name": "Z1 Recovery Spin", "duration_min": 45, "tss_per_hour": 25,
+        "zone": 1, "type": "bike",
+        "description": "Easy 45 min spin. Z1 only. Active recovery between harder sessions.",
+    },
+    "xco_threshold_4x5": {
+        "name": "4x5 min Z4 Threshold", "duration_min": 60, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 15 min, 4x5 min at Z4 (91-105% FTP), 3 min easy between. Cool down.",
+    },
+    "xco_strength_core": {
+        "name": "Strength + Core", "duration_min": 45, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Squat 3x8, hip thrust 3x10, plank 3x45s, dead bug 3x10 each side.",
+    },
+    "xco_z2_z3_sprints": {
+        "name": "Z2-Z3 + 3x2 min Z5 Sprints", "duration_min": 75, "tss_per_hour": 75,
+        "zone": 5, "type": "bike",
+        "description": "45 min Z2-Z3 then 3x2 min at Z5 (106-120% FTP) with 3 min full recovery between.",
+    },
+    "xco_race_sim": {
+        "name": "Race Simulation - XCO Laps", "duration_min": 105, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "3-4 laps of a loop at race effort. Include technical sections. Practice pacing.",
+    },
+    "xco_z1_long": {
+        "name": "Z1 Long Easy Ride", "duration_min": 75, "tss_per_hour": 30,
+        "zone": 1, "type": "bike",
+        "description": "75 min very easy. Z1 only. Legs should feel fresh at the end.",
+    },
+    "xco_threshold_3x5": {
+        "name": "3x5 min Z4 Threshold", "duration_min": 50, "tss_per_hour": 85,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 15 min, 3x5 min at Z4, 3 min easy between. Short but sharp.",
+    },
+    "xco_z1_z2_easy": {
+        "name": "Easy Z1-Z2 Ride 60 min", "duration_min": 60, "tss_per_hour": 40,
+        "zone": 2, "type": "bike",
+        "description": "Easy 60 min, Z1-Z2. Keep the legs moving without adding fatigue.",
+    },
+    "xco_z6_sprints": {
+        "name": "Z2 Ride + 4x30s Z6 Sprints", "duration_min": 60, "tss_per_hour": 60,
+        "zone": 6, "type": "bike",
+        "description": "40 min Z2 then 4x30 sec all-out Z6 sprints with 3 min easy between. Race sharpness.",
+    },
+    "xco_pre_race": {
+        "name": "Pre-Race Openers 45 min", "duration_min": 45, "tss_per_hour": 45,
+        "zone": 2, "type": "bike",
+        "description": "45 min easy with 3x30 sec accelerations to race pace. Get the legs firing.",
+    },
+    "xco_race_day": {
+        "name": "RACE DAY", "duration_min": 90, "tss_per_hour": 100,
+        "zone": 5, "type": "bike",
+        "description": "Race day. Warm up 20 min, full effort on course.",
+    },
+
+    # ── INTERMEDIATE ──────────────────────────────────────────────────────────
+    "xco_z1_easy_60": {
+        "name": "Easy Z1 Ride 60 min", "duration_min": 60, "tss_per_hour": 25,
+        "zone": 1, "type": "bike",
+        "description": "Very easy 60 min. Z1 only. Active recovery or off-season base.",
+    },
+    "xco_z2_road_90": {
+        "name": "Z2 Road/Gravel 90 min", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "90 min steady Z2 on road or gravel. No intensity. Pure aerobic base.",
+    },
+    "xco_gym_lower_body": {
+        "name": "Gym: Squat / RDL / Split Squat", "duration_min": 60, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Back squat 4x6, Romanian deadlift 4x6, split squat 3x8 each leg. Heavy.",
+    },
+    "xco_z2_mtb_tech": {
+        "name": "Z2 MTB - Technical Terrain 90 min", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "90 min trail ride on technical terrain. Z2 effort. Skills under control.",
+    },
+    "xco_gym_upper_lower": {
+        "name": "Gym: Hip Thrust / Bench / Pull-ups", "duration_min": 55, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Hip thrust 4x8, bench press 3x8, pull-ups 3x6, core circuit 3 rounds.",
+    },
+    "xco_long_z2_mtb": {
+        "name": "Long Z2 MTB Ride 2.5 hrs", "duration_min": 150, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2.5 hrs on trail, all Z2. Maximum aerobic volume for this phase.",
+    },
+    "xco_threshold_4x8": {
+        "name": "4x8 min Z4 Threshold", "duration_min": 75, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 15 min. 4x8 min at Z4 (91-105% FTP), 4 min easy between. Power meter required.",
+    },
+    "xco_z2_endurance_90": {
+        "name": "Z2 Endurance 90 min", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "90 min Z2. Pair with gym session if scheduled same day.",
+    },
+    "xco_z2_z3_mtb": {
+        "name": "Z2-Z3 MTB + 2x15 min Z3 Blocks", "duration_min": 90, "tss_per_hour": 65,
+        "zone": 3, "type": "bike",
+        "description": "MTB ride with 2x15 min Z3 tempo blocks (5 min easy between). Technical terrain preferred.",
+    },
+    "xco_skills_long": {
+        "name": "XCO Skills + Long Z2/Z3 Ride 2.5 hrs", "duration_min": 150, "tss_per_hour": 60,
+        "zone": 3, "type": "bike",
+        "description": "2.5 hrs with 20-30 min dedicated to skills: corners, technical climbs, drops.",
+    },
+    "xco_z2_recovery_70": {
+        "name": "Z2 Active Recovery 70 min", "duration_min": 70, "tss_per_hour": 45,
+        "zone": 2, "type": "bike",
+        "description": "Easy 70 min, low end Z2. Flush the legs from weekend intensity.",
+    },
+    "xco_vo2_6x3": {
+        "name": "6x3 min Z5 VO2max", "duration_min": 65, "tss_per_hour": 95,
+        "zone": 5, "type": "bike",
+        "description": "Warm up 15 min. 6x3 min at Z5 (110-115% FTP), 3 min easy between. Hard but controlled.",
+    },
+    "xco_z2_gym_maint": {
+        "name": "Z2 75 min + Gym Maintenance", "duration_min": 75, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "Z2 ride 75 min, then 30 min gym maintenance: squat, hip thrust, core.",
+    },
+    "xco_threshold_2x20": {
+        "name": "2x20 min Z4 Threshold", "duration_min": 60, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 10 min. 2x20 min at Z4 (91-105% FTP), 5 min easy between. Sustained effort.",
+    },
+    "xco_race_sim_hard": {
+        "name": "Race Simulation - Hard XCO Laps 2 hrs", "duration_min": 135, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "4-5 hard laps on a technical course. Race-pace effort. Measure each lap.",
+    },
+    "xco_z1_z2_long_90": {
+        "name": "Z1-Z2 Long Easy 90 min", "duration_min": 90, "tss_per_hour": 35,
+        "zone": 2, "type": "bike",
+        "description": "Easy 90 min, Z1-Z2. Recovery after hard week.",
+    },
+    "xco_race_openers": {
+        "name": "Race Openers: Z2 + 4x1 min Z5", "duration_min": 60, "tss_per_hour": 60,
+        "zone": 5, "type": "bike",
+        "description": "40 min Z2, then 4x1 min at Z5 race pace with 3 min easy between. Get sharp.",
+    },
+    "xco_z1_recovery_60": {
+        "name": "Easy Z1 Recovery 60 min", "duration_min": 60, "tss_per_hour": 25,
+        "zone": 1, "type": "bike",
+        "description": "Very easy 60 min. Z1 only. Pre-race or post-race recovery.",
+    },
+    "xco_threshold_2x15": {
+        "name": "2x15 min Z4 Threshold", "duration_min": 50, "tss_per_hour": 85,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 10 min. 2x15 min at Z4, 5 min easy between. Race-week sharpener.",
+    },
+    "xco_pre_race_short": {
+        "name": "Pre-Race: Easy + 3x30s Openers", "duration_min": 30, "tss_per_hour": 45,
+        "zone": 2, "type": "bike",
+        "description": "30 min easy with 3x30 sec accelerations to race pace. Leg prep before tomorrow.",
+    },
+
+    # ── ADVANCED ──────────────────────────────────────────────────────────────
+    "xco_easy_run": {
+        "name": "Easy Run 30-45 min", "duration_min": 40, "tss_per_hour": 30,
+        "zone": 1, "type": "gym",
+        "description": "Easy off-bike run 30-45 min. Z1-Z2 effort. Cross-training for off-season.",
+    },
+    "xco_pump_track": {
+        "name": "Pump Track - No Seatpost", "duration_min": 60, "tss_per_hour": 35,
+        "zone": 2, "type": "bike",
+        "description": "60 min pump track riding, seatpost all the way down. Pure body position and flow.",
+    },
+    "xco_gym_max_strength": {
+        "name": "Gym: Max Strength - Heavy Compound", "duration_min": 60, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Back squat 4x4, trap bar deadlift 4x4, split squat 3x5 each. 85-90% 1RM. Full rest.",
+    },
+    "xco_z2_gravel_2hr": {
+        "name": "Z2 Gravel/Road 2 hrs", "duration_min": 120, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2 hrs Z2 on road or gravel. Easy aerobic maintenance during transition phase.",
+    },
+    "xco_gym_posterior_core": {
+        "name": "Gym: Posterior Chain + Core + Upper", "duration_min": 60, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Hip thrust 4x8, single-leg RDL 3x8 each, Nordic curl 3x6, Pallof press, pull-ups.",
+    },
+    "xco_long_mtb_3hr": {
+        "name": "Long MTB Z1-Z2 Skills Focus 3 hrs", "duration_min": 180, "tss_per_hour": 48,
+        "zone": 2, "type": "bike",
+        "description": "3 hrs on trail, all Z1-Z2. No power targets. Skills focus: corners, drops, flow.",
+    },
+    "xco_z2_2hr_z3_blocks": {
+        "name": "Z2 2 hrs + 2x20 min Z3 Blocks", "duration_min": 120, "tss_per_hour": 60,
+        "zone": 3, "type": "bike",
+        "description": "Z2 ride with 2x20 min Z3 tempo blocks embedded. 5 min easy between blocks.",
+    },
+    "xco_gym_maint_z2": {
+        "name": "Gym Maintenance + Z2 90 min", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "30 min gym maintenance (squat, hip thrust, core), then Z2 ride 90 min.",
+    },
+    "xco_threshold_5x8": {
+        "name": "5x8 min Z4 Threshold", "duration_min": 80, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 15 min. 5x8 min at Z4 (91-105% FTP), 3 min easy between. All reps same power.",
+    },
+    "xco_long_trail_z2": {
+        "name": "Long MTB XCO Trail 3-4 hrs Z2", "duration_min": 210, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "3-4 hrs on technical XCO trail, all Z2. Volume is the goal. Fuelling practice.",
+    },
+    "xco_vo2_8x2_micro": {
+        "name": "8x2 min Z5-Z6 / 30-15 Micro-Intervals", "duration_min": 65, "tss_per_hour": 95,
+        "zone": 6, "type": "bike",
+        "description": "Option A: 8x2 min at Z5-Z6 (2 min rest). Option B: 20x30 sec Z6 / 15 sec Z1 x 3 sets.",
+    },
+    "xco_z2_gym_circuit": {
+        "name": "Z2 90 min + Gym Power-Endurance Circuit", "duration_min": 90, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "Z2 ride 90 min, then gym power-endurance circuit: goblet squat, step-ups, KB swing.",
+    },
+    "xco_threshold_z7_sprints": {
+        "name": "2x20 min Z4 + 6x30s Z7 Sprints", "duration_min": 75, "tss_per_hour": 95,
+        "zone": 7, "type": "bike",
+        "description": "2x20 min Z4 threshold, then tag 6x30 sec all-out Z7 sprints after. Neuromuscular finish.",
+    },
+    "xco_race_sim_full_gas": {
+        "name": "Race Sim Full Gas 2.5-3 hrs", "duration_min": 165, "tss_per_hour": 90,
+        "zone": 5, "type": "bike",
+        "description": "Full-gas race simulation 2.5-3 hrs on technical XCO course. Lap each loop.",
+    },
+    "xco_z2_long_2hr": {
+        "name": "Long Z2 Endurance 2-2.5 hrs", "duration_min": 135, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2-2.5 hrs easy Z2 endurance. Recovery after hard week or post race-sim.",
+    },
+    "xco_threshold_3x15": {
+        "name": "3x15 min Z4 Cruise Intervals", "duration_min": 70, "tss_per_hour": 88,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 10 min. 3x15 min at Z4 (FTP), 4 min easy between. Sustained threshold.",
+    },
+    "xco_skills_tech_90": {
+        "name": "Technical Skills 90 min - Fast Corners", "duration_min": 90, "tss_per_hour": 45,
+        "zone": 3, "type": "bike",
+        "description": "90 min dedicated to technical skills at pace: high-speed corners, rock gardens, roots.",
+    },
+    "xco_race_sim_short_4x10": {
+        "name": "Short Race Sim: 4x10 min XCO Laps", "duration_min": 75, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "4x10 min XCO lap efforts at max sustainable pace. 3 min easy between.",
+    },
+    "xco_training_race": {
+        "name": "Open A-Race / Training Race", "duration_min": 120, "tss_per_hour": 90,
+        "zone": 5, "type": "bike",
+        "description": "Race a local event or high-quality group ride at race intensity. Calibration race.",
+    },
+    "xco_z2_2hr_recovery": {
+        "name": "Z2 2 hrs Recovery", "duration_min": 120, "tss_per_hour": 48,
+        "zone": 2, "type": "bike",
+        "description": "Easy 2 hrs Z2. Recovery ride after race or race simulation.",
+    },
+    "xco_vo2_4x5": {
+        "name": "4x5 min Z5 - Sharp", "duration_min": 50, "tss_per_hour": 92,
+        "zone": 5, "type": "bike",
+        "description": "Warm up 10 min. 4x5 min at Z5 (106-115% FTP), 3 min easy between. Taper sharpener.",
+    },
+    "xco_z6_openers": {
+        "name": "Easy 30 min + 3x1 min Z6 Openers", "duration_min": 35, "tss_per_hour": 50,
+        "zone": 6, "type": "bike",
+        "description": "30 min easy, then 3x1 min at Z6 with full recovery. Open up the legs.",
+    },
+    "xco_travel_spin": {
+        "name": "Travel + Course Recon Easy Spin", "duration_min": 45, "tss_per_hour": 30,
+        "zone": 1, "type": "bike",
+        "description": "Easy spin on course or road. Recon the track. Keep it very easy.",
+    },
+    "xco_race_start_practice": {
+        "name": "20 min + 5x10s Race-Start Practice", "duration_min": 20, "tss_per_hour": 40,
+        "zone": 6, "type": "bike",
+        "description": "20 min easy, then 5 explosive standing starts from 0. UCI XCO is won in the first 200m.",
+    },
+
+    # ── PRO / ELITE ───────────────────────────────────────────────────────────
+    "xco_fun_ride": {
+        "name": "Fun Ride - BMX/Pump Track (no data)", "duration_min": 60, "tss_per_hour": 35,
+        "zone": 2, "type": "bike",
+        "description": "No HR, no power. BMX, pump track, dirt jumps. Ride for fun. Mental reset.",
+    },
+    "xco_gym_mobility": {
+        "name": "Gym: Mobility + Movement Screening", "duration_min": 60, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Full body mobility, movement screening, injury prevention. No load.",
+    },
+    "xco_z1_z2_cross_training": {
+        "name": "Z1-Z2 Ride / Run / Swim 90 min", "duration_min": 90, "tss_per_hour": 30,
+        "zone": 2, "type": "bike",
+        "description": "Cross-training: easy run, swim, or Z1-Z2 ride. 90 min. Mental variety.",
+    },
+    "xco_gym_max_strength_elite": {
+        "name": "Gym: Max Strength - Heavy Lifts (Elite)", "duration_min": 70, "tss_per_hour": 0,
+        "zone": 0, "type": "gym",
+        "description": "Trap bar deadlift 5x3, back squat 5x3, split squat 4x4. >90% 1RM. Full rest 5 min.",
+    },
+    "xco_group_mtb_3hr": {
+        "name": "Group MTB Ride 3 hrs - Social/Skills", "duration_min": 180, "tss_per_hour": 48,
+        "zone": 2, "type": "bike",
+        "description": "Social group MTB ride 3 hrs. No power targets. Skills, fun, mental recovery.",
+    },
+    "xco_z2_road_2hr": {
+        "name": "Z2 Road Recovery 2 hrs", "duration_min": 120, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2 hrs Z2 road ride. Easy aerobic work. Daily volume building block.",
+    },
+    "xco_z2_z3_mtb_3hr": {
+        "name": "Z2-Z3 MTB 3 hrs + 2x20 min Z3", "duration_min": 180, "tss_per_hour": 60,
+        "zone": 3, "type": "bike",
+        "description": "3 hr MTB ride with 2x20 min Z3 tempo blocks. Technical terrain preferred.",
+    },
+    "xco_gym_am_z2_pm": {
+        "name": "Gym AM + Z2 Road 2 hrs PM", "duration_min": 120, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "Morning gym: max strength or explosive. Afternoon: 2 hrs Z2 road. Two-a-day.",
+    },
+    "xco_threshold_5x10": {
+        "name": "5x10 min Z4 Threshold", "duration_min": 90, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 15 min. 5x10 min at Z4 (91-105% FTP), 4 min rest. Power meter target.",
+    },
+    "xco_z1_flush": {
+        "name": "Z1 Active Recovery Flush 60-75 min", "duration_min": 65, "tss_per_hour": 20,
+        "zone": 1, "type": "bike",
+        "description": "60-75 min very easy Z1. Active flush after hard day. Keep HR low.",
+    },
+    "xco_long_trail_4_5hr": {
+        "name": "Long XCO Trail 4-5 hrs All Z2", "duration_min": 270, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "4-5 hrs on technical XCO trail, all Z2. Maximum aerobic volume. Fuel and hydrate properly.",
+    },
+    "xco_z2_road_2hr_gym": {
+        "name": "Z2 Road 2 hrs + Optional Gym", "duration_min": 120, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2 hrs Z2 road, then optional 30 min gym maintenance if legs allow.",
+    },
+    "xco_z1_z2_easy_90": {
+        "name": "Z1-Z2 Easy 90 min", "duration_min": 90, "tss_per_hour": 35,
+        "zone": 2, "type": "bike",
+        "description": "Easy 90 min, Z1-Z2. Between hard days. Flush and recover.",
+    },
+    "xco_vo2_10x2_or_40_20": {
+        "name": "10x2 min Z5-Z6 / 40-20 Intervals x20", "duration_min": 75, "tss_per_hour": 95,
+        "zone": 6, "type": "bike",
+        "description": "Option A: 10x2 min at Z5-Z6 (2 min rest). Option B: 20x40 sec Z6 / 20 sec Z1 x 3 sets, 5 min between.",
+    },
+    "xco_z2_2_5hr_gym": {
+        "name": "Z2 Endurance 2.5 hrs + Gym", "duration_min": 150, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "2.5 hrs Z2, then 30-40 min gym strength maintenance.",
+    },
+    "xco_threshold_2x30": {
+        "name": "2x30 min Z4 Threshold", "duration_min": 80, "tss_per_hour": 90,
+        "zone": 4, "type": "bike",
+        "description": "Warm up 10 min. 2x30 min at Z4 (91-105% FTP), 8 min easy between. Elite standard.",
+    },
+    "xco_race_or_sim_full": {
+        "name": "XCO Race or Simulation + Z2 Cooldown", "duration_min": 180, "tss_per_hour": 80,
+        "zone": 5, "type": "bike",
+        "description": "Race or full-gas race simulation 2-2.5 hrs, then 30 min Z2 cooldown.",
+    },
+    "xco_long_z2_mtb_3_4hr": {
+        "name": "Long Z2 MTB 3-4 hrs", "duration_min": 210, "tss_per_hour": 50,
+        "zone": 2, "type": "bike",
+        "description": "3-4 hrs Z2 MTB. Long aerobic ride. Volume is the stimulus.",
+    },
+    "xco_sim_4laps": {
+        "name": "XCO Sim: 4 Hard Laps Race-Pace", "duration_min": 90, "tss_per_hour": 90,
+        "zone": 5, "type": "bike",
+        "description": "4 full laps at race pace on a technical XCO course. Time each lap. Consistent power output.",
+    },
+    "xco_z2_skills_2hr": {
+        "name": "Z2 2 hrs + Specific Skills", "duration_min": 120, "tss_per_hour": 52,
+        "zone": 2, "type": "bike",
+        "description": "2 hrs Z2 with 20-30 min focused skill work: rock gardens, steep technical climbs.",
+    },
+    "xco_z7_microbursts": {
+        "name": "Micro-Bursts: 3x8x20s Z7 / 40s Z2", "duration_min": 55, "tss_per_hour": 95,
+        "zone": 7, "type": "bike",
+        "description": "3 sets of 8x20 sec Z7 (>150% FTP) / 40 sec Z2. 5 min easy between sets.",
+    },
+    "xco_prerace_openers_1min": {
+        "name": "Pre-Race: 60 min + 4x1 min Openers", "duration_min": 60, "tss_per_hour": 55,
+        "zone": 5, "type": "bike",
+        "description": "60 min with 4x1 min at race pace (Z5) openers. 3 min easy between. Get sharp.",
+    },
+    "xco_z1_flush_45": {
+        "name": "Easy Z1 Flush 45 min", "duration_min": 45, "tss_per_hour": 20,
+        "zone": 1, "type": "bike",
+        "description": "45 min very easy Z1. Post-race flush or pre-hard-day primer.",
+    },
+    "xco_race_sharp": {
+        "name": "Race-Sharp: 5x5 min Z5 + Z7 Sprints", "duration_min": 60, "tss_per_hour": 95,
+        "zone": 7, "type": "bike",
+        "description": "5x5 min at Z5 (110% FTP) then 6x10 sec Z7 all-out sprints. Race-week sharpener.",
+    },
+    "xco_course_recon": {
+        "name": "Course Recon - Full Lap + Line Selection", "duration_min": 60, "tss_per_hour": 35,
+        "zone": 2, "type": "bike",
+        "description": "Full course lap at easy pace. Identify lines, braking points, technical sections.",
+    },
+    "xco_z2_mental_rehearsal": {
+        "name": "Z2 90 min + Visualization Session", "duration_min": 90, "tss_per_hour": 45,
+        "zone": 2, "type": "bike",
+        "description": "Z2 ride 90 min, followed by 15-20 min visualization of race-day execution.",
+    },
+    "xco_race_start_5x": {
+        "name": "Easy 45 min + Race-Start Practice x5", "duration_min": 45, "tss_per_hour": 40,
+        "zone": 6, "type": "bike",
+        "description": "45 min easy, then 5x explosive race-start from standstill. UCI XCO won in first 200m.",
+    },
+    "xco_openers_30sec": {
+        "name": "30 min Easy + 3x30 sec Openers", "duration_min": 30, "tss_per_hour": 45,
+        "zone": 6, "type": "bike",
+        "description": "30 min easy with 3x30 sec race-pace openers. Leg primer before race day.",
+    },
+}
+
+
+XCO_RACING_PLANS = {
+    "beginner": {
+        "label": "Beginner XCO", "category": "Cat 4-3",
+        "weeks": 16, "hours_range": "4-8 hrs/week", "tss_range": "150-300 TSS/week",
+        "phases": [
+            {"name": "pre_base",   "label": "Pre-Base",   "week_range": (1, 3),
+             "template": ["xco_active_recovery","rest","xco_z1_z2_mtb","xco_core_mobility","xco_z2_road","rest","xco_mtb_skills_long"]},
+            {"name": "base_build", "label": "Base Build", "week_range": (4, 9),
+             "template": ["xco_z1_spin","rest","xco_z2_tempo","xco_strength","xco_z2_endurance","rest","xco_mtb_skills_2hr"]},
+            {"name": "build",      "label": "Build",      "week_range": (10, 13),
+             "template": ["xco_z1_long","rest","xco_threshold_4x5","xco_strength_core","xco_z2_z3_sprints","rest","xco_race_sim"]},
+            {"name": "race_prep",  "label": "Race Prep",  "week_range": (14, 16),
+             "template": ["rest","rest","xco_threshold_3x5","xco_z1_z2_easy","xco_z6_sprints","rest","xco_pre_race"],
+             "final_week_sunday": "xco_race_day"},
+        ],
+    },
+    "intermediate": {
+        "label": "Intermediate XCO", "category": "Cat 2-1",
+        "weeks": 20, "hours_range": "8-12 hrs/week", "tss_range": "300-550 TSS/week",
+        "phases": [
+            {"name": "off_season_base", "label": "Off-Season Base", "week_range": (1, 4),
+             "template":          ["xco_z1_easy_60","rest","xco_z2_road_90","xco_gym_lower_body","xco_z2_mtb_tech","xco_gym_upper_lower","xco_long_z2_mtb"],
+             "recovery_template": ["rest","rest","xco_z2_road_90","rest","xco_z2_mtb_tech","rest","xco_z1_easy_60"],
+             "recovery_weeks": [4]},
+            {"name": "base",        "label": "Base",        "week_range": (5, 12),
+             "template": ["xco_z2_recovery_70","rest","xco_threshold_4x8","xco_z2_endurance_90","xco_z2_z3_mtb","rest","xco_skills_long"]},
+            {"name": "build",       "label": "Build",       "week_range": (13, 17),
+             "template": ["xco_z1_z2_long_90","rest","xco_vo2_6x3","xco_z2_gym_maint","xco_threshold_2x20","rest","xco_race_sim_hard"]},
+            {"name": "race_season", "label": "Race Season", "week_range": (18, 20),
+             "template": ["xco_race_day","rest","xco_race_openers","xco_z1_recovery_60","xco_threshold_2x15","rest","xco_pre_race_short"]},
+        ],
+    },
+    "advanced": {
+        "label": "Advanced XCO", "category": "Cat 1 / Elite Amateur",
+        "weeks": 24, "hours_range": "12-16 hrs/week", "tss_range": "500-750 TSS/week",
+        "phases": [
+            {"name": "transition",     "label": "Transition / Off-Season", "week_range": (1, 4),
+             "template": ["xco_easy_run","rest","xco_pump_track","xco_gym_max_strength","xco_z2_gravel_2hr","xco_gym_posterior_core","xco_long_mtb_3hr"]},
+            {"name": "base",           "label": "Base - 80/20 Polarized",  "week_range": (5, 10),
+             "template": ["xco_z2_road_90","rest","xco_z2_2hr_z3_blocks","xco_gym_maint_z2","xco_threshold_5x8","rest","xco_long_trail_z2"]},
+            {"name": "specific_build", "label": "Specific Build",           "week_range": (11, 18),
+             "template":          ["xco_z2_long_2hr","rest","xco_vo2_8x2_micro","xco_z2_gym_circuit","xco_threshold_z7_sprints","rest","xco_race_sim_full_gas"],
+             "recovery_template": ["xco_z2_road_90","rest","xco_z2_2hr_z3_blocks","rest","xco_threshold_5x8","rest","xco_z2_long_2hr"],
+             "recovery_weeks": [14, 18]},
+            {"name": "pre_race_build", "label": "Pre-Race Build",           "week_range": (19, 22),
+             "template": ["xco_z2_2hr_recovery","rest","xco_threshold_3x15","xco_skills_tech_90","xco_race_sim_short_4x10","xco_z1_z2_easy","xco_training_race"]},
+            {"name": "taper",          "label": "Taper & Peak",             "week_range": (23, 24),
+             "template": ["rest","rest","xco_vo2_4x5","xco_z1_z2_easy","xco_z6_openers","xco_travel_spin","xco_race_start_practice"],
+             "final_week_sunday": "xco_race_day"},
+        ],
+    },
+    "pro_elite": {
+        "label": "Pro / Elite XCO", "category": "World Cup / National Elite",
+        "weeks": 32, "hours_range": "15-25 hrs/week", "tss_range": "700-1100 TSS/week",
+        "phases": [
+            {"name": "active_recovery",     "label": "Active Recovery Block",  "week_range": (1, 3),
+             "template": ["rest","rest","xco_fun_ride","xco_gym_mobility","xco_z1_z2_cross_training","xco_gym_max_strength_elite","xco_group_mtb_3hr"]},
+            {"name": "base_1",              "label": "Base I - CTL 60-100+",   "week_range": (4, 9),
+             "template": ["xco_z2_road_2hr_gym","xco_z2_road_2hr","xco_z2_z3_mtb_3hr","xco_gym_am_z2_pm","xco_threshold_5x10","xco_z1_flush","xco_long_trail_4_5hr"]},
+            {"name": "base_2",              "label": "Base II - Polarized",    "week_range": (10, 16),
+             "template": ["xco_long_z2_mtb_3_4hr","xco_z1_z2_easy_90","xco_vo2_10x2_or_40_20","xco_z2_2_5hr_gym","xco_threshold_2x30","xco_z1_recovery_60","xco_race_or_sim_full"]},
+            {"name": "race_specific_build", "label": "Race-Specific Build",    "week_range": (17, 24),
+             "template":          ["xco_z1_flush_45","xco_active_recovery","xco_sim_4laps","xco_z2_skills_2hr","xco_z7_microbursts","xco_prerace_openers_1min","xco_race_day"],
+             "recovery_template": ["xco_z1_flush_45","xco_active_recovery","xco_z2_road_2hr","xco_z2_skills_2hr","xco_z1_z2_easy_90","xco_prerace_openers_1min","xco_race_day"],
+             "recovery_weeks": [20, 24]},
+            {"name": "championship_peak",   "label": "Championship Peak",      "week_range": (25, 32),
+             "template": ["rest","rest","xco_race_sharp","xco_course_recon","xco_z2_mental_rehearsal","xco_race_start_5x","xco_openers_30sec"],
+             "final_week_sunday": "xco_race_day"},
+        ],
+    },
+}
+
+
+def build_xco_racing_plan(category, ftp, persona, start_date=None):
+    """Build a structured XCO racing plan by category (beginner/intermediate/advanced/pro_elite)."""
+    meta  = XCO_RACING_PLANS[category]
+    weeks = meta["weeks"]
+    start = start_date or datetime.today()
+    days_to_sunday = (6 - start.weekday()) % 7
+    start = start + timedelta(days=days_to_sunday)
+    vol   = 0.85 if ftp < 200 else (1.0 if ftp <= 280 else 1.15)
+
+    plan = {
+        "goal": "xco_racing", "xco_category": category, "xco_power": True,
+        "weeks": weeks, "ftp": ftp, "persona": persona["id"],
+        "start_date": start.strftime("%Y-%m-%d"),
+        "created_at": datetime.now().isoformat(),
+        "weekly_plans": [],
+    }
+
+    rest_day = {
+        "name": "Rest Day", "duration_min": 0, "tss_per_hour": 0,
+        "zone": 0, "type": "rest", "description": "",
+    }
+
+    for week_num in range(1, weeks + 1):
+        phase = next(p for p in meta["phases"]
+                     if p["week_range"][0] <= week_num <= p["week_range"][1])
+        is_recovery   = week_num in phase.get("recovery_weeks", [])
+        tmpl_key      = "recovery_template" if is_recovery else "template"
+        template      = phase[tmpl_key]
+        final_sun_key = phase.get("final_week_sunday") if week_num == weeks else None
+
+        week_start = start + timedelta(weeks=week_num - 1)
+        days = []
+        week_tss = 0
+
+        for i, wkey in enumerate(template):
+            if i == 0 and final_sun_key:
+                wkey = final_sun_key
+            day_d = week_start + timedelta(days=i)
+            w     = XCO_RACING_WORKOUTS.get(wkey, rest_day)
+            wtype = w.get("type", "rest")
+            if wtype == "gym":
+                tss = 30
+            elif wtype == "bike":
+                tss = int((w["duration_min"] / 60) * w["tss_per_hour"] * vol)
+            else:
+                tss = 0
+            week_tss += tss
+            days.append({
+                "day": DAYS[i], "date": day_d.strftime("%Y-%m-%d"),
+                "workout": wkey, "name": w["name"],
+                "description": w.get("description", ""),
+                "duration_min": w["duration_min"], "tss": tss,
+                "zone": w.get("zone", 0), "type": wtype,
+            })
+
+        plan["weekly_plans"].append({
+            "week": week_num, "phase": phase["name"],
+            "phase_label": phase["label"],
+            "week_start": week_start.strftime("%Y-%m-%d"),
+            "total_tss": week_tss, "days": days,
+        })
+
+    return plan
