@@ -180,10 +180,12 @@
           {% endif %}
           {% if u.strava %}
           <form class="quota-form" method="POST" action="/admin/quota/{{ u.chat_id }}">
-            <input class="quota-input" type="text" name="allowance"
+            <input class="quota-input" id="qi-{{ u.chat_id }}" type="text" name="allowance"
               placeholder="{{ u.allowance if u.allowance is not none else 'off' }}"
-              title="Enter amount in USD, or 'off' for unlimited">
+              title="Enter amount to set, +amount to add, or 'off' for unlimited">
             <button class="quota-btn" type="submit">Set</button>
+            <button class="quota-btn" type="button" style="background:#444"
+              onclick="var i=document.getElementById('qi-{{ u.chat_id }}');var v=parseFloat(i.value);if(!isNaN(v)){i.value='+'+Math.abs(v);i.form.submit();}else{i.focus();}">+Add</button>
           </form>
           {% endif %}
         </td>

@@ -417,11 +417,16 @@ def admin_set_quota(chat_id: str):
         return "User not found", 404
     quota_file = user_dir / "demo_quota.json"
     quota = json.loads(quota_file.read_text()) if quota_file.exists() else {}
+    adding = raw.startswith("+")
     if raw in ("", "off", "unlimited"):
         quota["allowance_usd"] = None
     else:
         try:
-            quota["allowance_usd"] = float(raw)
+            amount = float(raw.lstrip("+"))
+            if adding:
+                quota["allowance_usd"] = round((quota.get("allowance_usd") or 0.0) + amount, 2)
+            else:
+                quota["allowance_usd"] = amount
         except ValueError:
             return "Invalid amount", 400
     quota_file.write_text(json.dumps(quota, indent=2))
