@@ -917,7 +917,7 @@ def handle_callback(token, callback_query):
         )
         send_message(token, chat_id,
             f"💰 Set quota for *{target_name}* (current: {cur_str})\n\n"
-            f"Reply with the amount in USD (e.g. `2.50`), or `off` for unlimited."
+            f"Reply with amount in USD (e.g. `2.50`), `+1.00` to add to existing, or `off` for unlimited."
         )
         return
 
@@ -3224,16 +3224,23 @@ def handle_message(token, message):
         target_name = pending.get("target_name", target_id)
         if target_id:
             raw = text.strip().lower()
+            adding = raw.startswith("+")
             if raw == "off":
                 new_allowance = None
             else:
                 try:
-                    new_allowance = float(raw)
-                    if new_allowance < 0:
+                    amount = float(raw.lstrip("+"))
+                    if amount < 0:
                         send_message(token, chat_id, "Allowance must be >= 0.")
                         return
+                    if adding:
+                        target_dir_tmp = CONFIG_DIR / "users" / target_id
+                        _, _, current = check_demo_quota(target_dir_tmp)
+                        new_allowance = round((current or 0.0) + amount, 2)
+                    else:
+                        new_allowance = amount
                 except ValueError:
-                    send_message(token, chat_id, f"Invalid amount `{raw}`. Use a number or `off`.")
+                    send_message(token, chat_id, f"Invalid amount `{raw}`. Use a number, `+amount` to add, or `off`.")
                     return
             target_dir = CONFIG_DIR / "users" / target_id
             target_dir.mkdir(parents=True, exist_ok=True)
