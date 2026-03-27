@@ -172,7 +172,7 @@ def log_query(user_dir: Path, user_id: str, user_name: str,
                 "INSERT INTO queries (timestamp, user_id, user_name, query, tokens_used, cost_usd, response) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (
-                    datetime.utcnow().isoformat(timespec="seconds"),
+                    datetime.utcnow().isoformat(timespec="seconds") + "Z",
                     user_id,
                     user_name,
                     query,
