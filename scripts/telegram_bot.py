@@ -24,6 +24,9 @@ Usage:
 
     # Add to crontab for lightweight polling every 5 min:
     # */5 * * * * /path/to/scripts/telegram_bot.py --once
+
+    # Send next-day prep notifications at 20:00 every evening:
+    # 0 20 * * * /path/to/scripts/telegram_bot.py --notify
 """
 
 import fcntl
@@ -213,6 +216,45 @@ def cmd_notify(user_dir: Path, args: list, token: str = "", chat_id: str = "") -
         return "🔴 *Ride notifications OFF*\n\nUse /ride anytime to check your latest ride manually."
     else:
         return "Usage: `/notify on` or `/notify off`"
+
+
+def cmd_notifyplan(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str:
+    """Toggle or show the next-day plan preparation reminder setting."""
+    cfg_file = user_dir / "config.json"
+    cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
+    current = cfg.get("notify_prep", True)
+
+    if not args:
+        status = "🟢 ON" if current else "🔴 OFF"
+        detail = (
+            "Every evening at 20:00 I send you a preview of tomorrow\u2019s workout so you can plan ahead."
+            if current else
+            "You will not receive evening training previews. Use /tomorrow to check manually."
+        )
+        if token and chat_id:
+            tg_api_json(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       f"*Next-day training reminders:* {status}\n\n{detail}",
+                "parse_mode": "Markdown",
+                "reply_markup": {"inline_keyboard": [[
+                    {"text": "🟢 Turn ON",  "callback_data": "notifyplan_on"},
+                    {"text": "🔴 Turn OFF", "callback_data": "notifyplan_off"},
+                ]]},
+            })
+            return None
+        return f"*Next-day training reminders:* {status}\n\nToggle with `/notifyplan on` or `/notifyplan off`"
+
+    arg = args[0].lower()
+    if arg == "on":
+        cfg["notify_prep"] = True
+        cfg_file.write_text(json.dumps(cfg, indent=2))
+        return "🟢 *Next-day reminders ON*\n\nI'll send you tomorrow's workout preview every evening at 20:00."
+    elif arg == "off":
+        cfg["notify_prep"] = False
+        cfg_file.write_text(json.dumps(cfg, indent=2))
+        return "🔴 *Next-day reminders OFF*\n\nUse /tomorrow anytime to check tomorrow's workout manually."
+    else:
+        return "Usage: `/notifyplan on` or `/notifyplan off`"
 
 
 def cmd_quota(user_dir: Path) -> str:
@@ -498,8 +540,9 @@ CMD_GROUPS = {
     "setup":     "free",
     "quota":     "free",
     "contact":   "free",
-    "notify":    "free",
-    "leave":     "free",
+    "notify":        "free",
+    "notifyplan":    "free",
+    "leave":         "free",
     "admin":     "free",
 }
 
@@ -789,6 +832,14 @@ def handle_callback(token, callback_query):
             send_message(token, chat_id, reply)
         return
 
+    if data in ("notifyplan_on", "notifyplan_off"):
+        udir = get_user_dir(chat_id)
+        arg  = "on" if data == "notifyplan_on" else "off"
+        reply = cmd_notifyplan(udir, [arg])
+        if reply:
+            send_message(token, chat_id, reply)
+        return
+
     if data in ("admin_pick_quota", "admin_pick_delete"):
         if not _is_admin(chat_id):
             return
@@ -971,6 +1022,8 @@ def cmd_help(persona):
         f"  /trends — week-by-week trend analysis (30 days)\n"
         f"  /trends 90 — trends for last N days\n"
         f"  /quota — check your AI usage & limit\n"
+        f"  /notify — toggle post-ride notifications\n"
+        f"  /notifyplan — toggle next-day training reminders (20:00)\n"
         f"  /contact — get in touch with support\n"
         f"  /help — this message"
     )
@@ -3140,6 +3193,8 @@ def handle_message(token, message):
         reply = cmd_quota(_UDIR)
     elif cmd == "notify":
         reply = cmd_notify(_UDIR, args, token=token, chat_id=chat_id)
+    elif cmd == "notifyplan":
+        reply = cmd_notifyplan(_UDIR, args, token=token, chat_id=chat_id)
     elif cmd == "leave":
         reply = cmd_leave(token=token, chat_id=chat_id)
     elif cmd == "help":
@@ -3222,6 +3277,125 @@ def handle_message(token, message):
             send_message_with_voice_btn(token, chat_id, reply, voice_text)
         else:
             send_message(token, chat_id, reply)
+
+
+def _prep_sent_file(udir: Path, date_str: str) -> Path:
+    return udir / f"prep_sent_{date_str}.txt"
+
+
+def send_prep_notifications(token: str):
+    """Send next-day training preview to every opted-in user. Run nightly at 20:00 via cron."""
+    tomorrow     = (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+    today_str    = datetime.today().strftime("%Y-%m-%d")
+    users_dir    = CONFIG_DIR / "users"
+
+    # Build list of (chat_id, udir) pairs — supports both single-user and multi-tenant
+    user_pairs: list[tuple[str, Path]] = []
+    single_id = os.environ.get("STRAVA_TELEGRAM_CHAT_ID")
+    if single_id:
+        user_pairs = [(single_id, CONFIG_DIR)]
+    elif users_dir.exists():
+        for udir in sorted(users_dir.iterdir()):
+            if udir.is_dir():
+                user_pairs.append((udir.name, udir))
+
+    sent = skipped = 0
+    for chat_id, udir in user_pairs:
+        try:
+            # Skip if user opted out
+            cfg = {}
+            cfg_file = udir / "config.json"
+            if cfg_file.exists():
+                cfg = json.loads(cfg_file.read_text())
+            if not cfg.get("notify_prep", True):
+                continue
+
+            # Skip if no plan
+            plan_file = udir / "training_plan.json"
+            if not plan_file.exists():
+                continue
+
+            # Skip if already sent today
+            sentinel = _prep_sent_file(udir, today_str)
+            if sentinel.exists():
+                skipped += 1
+                continue
+
+            # Find tomorrow's workout in the plan
+            try:
+                plan = json.loads(plan_file.read_text())
+            except Exception:
+                continue
+            tomorrow_day = None
+            for week in plan.get("weekly_plans", []):
+                for day in week.get("days", []):
+                    if day.get("date") == tomorrow:
+                        tomorrow_day = day
+                        break
+                if tomorrow_day:
+                    break
+
+            if not tomorrow_day:
+                continue
+
+            # Build the message
+            persona = load_active_persona(cfg_file)
+            coach   = persona["name"]
+            is_first_day = plan.get("start_date") == tomorrow
+
+            wname    = tomorrow_day.get("name", "Workout")
+            desc     = tomorrow_day.get("description", "")
+            dur      = tomorrow_day.get("duration_min", "?")
+            tss      = tomorrow_day.get("tss", "?")
+            zone     = tomorrow_day.get("zone", 0)
+            dtype    = tomorrow_day.get("type", "")
+            workout  = tomorrow_day.get("workout", "")
+
+            if dtype == "gym":
+                z_label = "💪 Gym session"; emoji = "🏋️"
+            elif zone and int(zone) > 0:
+                z_label = f"Zone {zone}"; emoji = "🚴"
+            elif workout == "rest":
+                z_label = "Rest day"; emoji = "😴"
+            else:
+                z_label = "Ride"; emoji = "🚴"
+
+            if workout == "rest":
+                # Send a short rest-day note
+                msg = (
+                    f"🌙 *Tomorrow: Rest Day*\n\n"
+                    f"Your body grows stronger during recovery. Sleep well, eat right, and come back fresh. 💤\n\n"
+                    f"— {coach}"
+                )
+            elif is_first_day:
+                msg = (
+                    f"🚀 *Your Training Plan Starts Tomorrow!*\n\n"
+                    f"Week 1 kicks off with:\n\n"
+                    f"{emoji} *{wname}* — {z_label}\n"
+                    f"⏱ Duration: *{dur} min*  |  TSS: *{tss}*\n\n"
+                    f"_{desc}_\n\n"
+                    f"The journey begins. Get your kit ready, charge your Garmin, and rest well tonight. 🔋\n\n"
+                    f"— {coach}"
+                )
+            else:
+                msg = (
+                    f"🌙 *Tomorrow\u2019s Training Briefing*\n\n"
+                    f"{emoji} *{wname}* — {z_label}\n"
+                    f"⏱ Duration: *{dur} min*  |  TSS: *{tss}*\n\n"
+                    f"_{desc}_\n\n"
+                    f"Plan your ride time, prep your nutrition, and get a good night\u2019s sleep. 💤\n\n"
+                    f"— {coach}"
+                )
+
+            send_message(token, chat_id, msg)
+            sentinel.write_text("sent")
+            sent += 1
+            log.info(f"Prep notification sent → {chat_id} (tomorrow: {wname})")
+
+        except Exception as e:
+            log.warning(f"Prep notification failed for {chat_id}: {e}")
+
+    log.info(f"Prep notifications done — sent={sent}, skipped={skipped}, total={len(user_pairs)}")
 
 
 def run(loop=False):
@@ -3310,11 +3484,16 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description="Strava Custom Coach Telegram bot")
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument("--once", action="store_true", help="Poll once then exit (for cron)")
-    mode.add_argument("--loop", action="store_true", help="Long-poll continuously")
+    mode.add_argument("--once",   action="store_true", help="Poll once then exit (for cron)")
+    mode.add_argument("--loop",   action="store_true", help="Long-poll continuously")
+    mode.add_argument("--notify", action="store_true", help="Send next-day prep notifications then exit (run at 20:00 via cron)")
     args = parser.parse_args()
 
-    run(loop=args.loop)
+    if args.notify:
+        token = get_token()
+        send_prep_notifications(token)
+    else:
+        run(loop=args.loop)
 
 
 if __name__ == "__main__":
