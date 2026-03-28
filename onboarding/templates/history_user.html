@@ -23,6 +23,7 @@
   .muted { color: var(--muted); }
   .query-text { max-width: 240px; white-space: pre-wrap; word-break: break-word; }
   .response-text { max-width: 360px; white-space: pre-wrap; word-break: break-word; color: var(--muted); font-size: 11px; }
+  .prompt-text { max-width: 320px; white-space: pre-wrap; word-break: break-word; color: #4a9eff; font-size: 11px; }
   .cost { color: var(--orange); font-family: 'DM Mono', monospace; }
   .no-ai { color: var(--muted); font-size: 11px; }
   .pagination { display: flex; gap: 12px; margin-top: 24px; align-items: center; }
@@ -71,6 +72,7 @@
         <th>Tokens</th>
         <th>Cost</th>
         <th>Response</th>
+        <th>Prompt</th>
       </tr>
     </thead>
     <tbody>
@@ -92,6 +94,9 @@
           {% else %}<span class="no-ai">$0</span>{% endif %}
         </td>
         <td class="response-text">{{ r.response[:200] }}{% if r.response|length > 200 %}…{% endif %}</td>
+        <td class="prompt-text">
+          {%- if r.prompt -%}{{ r.prompt[:300] }}{% if r.prompt|length > 300 %}…{% endif %}{%- else -%}<span class="no-ai">—</span>{%- endif -%}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
