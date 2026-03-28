@@ -159,7 +159,7 @@ Admin: /admin invite <chat_id>
 │   ├── training_plan.json         # Active training plan
 │   ├── training_plan_vN.json      # Archived plans
 │   ├── demo_quota.json            # {allowance_usd, spent_usd}
-│   └── history.db                 # SQLite: id, timestamp (UTC+Z), query, tokens_used, cost_usd, response
+│   └── history.db                 # SQLite: id, timestamp (UTC+Z), query, tokens_used, cost_usd, response, prompt (AI chat only)
 ~/.cache/strava/
 └── activities.json       # Local cache of Strava activities
 ```
@@ -174,6 +174,7 @@ Every user interaction is logged to `history.db` via `log_query()`:
 - `/voice` (logged with filename + file size in KB)
 - Admin actions (logged to admin's own history.db)
 - Timestamps stored as UTC ISO 8601 with `Z` suffix; browser JS converts to local time in the admin UI
+- `prompt` column stores the full system prompt + context + user message for AI chat rows; `NULL` for commands/buttons. Visible in the admin history page.
 
 ## Environment Variables
 
