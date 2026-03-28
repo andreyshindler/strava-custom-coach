@@ -156,21 +156,27 @@ def _db_init(user_dir: Path):
                 query        TEXT    NOT NULL,
                 tokens_used  INTEGER NOT NULL DEFAULT 0,
                 cost_usd     REAL    NOT NULL DEFAULT 0.0,
-                response     TEXT    NOT NULL
+                response     TEXT    NOT NULL,
+                prompt       TEXT
             )
         """)
+        # Migrate existing DBs that lack the prompt column
+        cols = {row[1] for row in conn.execute("PRAGMA table_info(queries)")}
+        if "prompt" not in cols:
+            conn.execute("ALTER TABLE queries ADD COLUMN prompt TEXT")
 
 
 def log_query(user_dir: Path, user_id: str, user_name: str,
               query: str, response: str,
-              tokens_used: int = 0, cost_usd: float = 0.0):
+              tokens_used: int = 0, cost_usd: float = 0.0,
+              prompt: str = None):
     """Append one row to the user's query history database."""
     try:
         _db_init(user_dir)
         with sqlite3.connect(_db_path(user_dir)) as conn:
             conn.execute(
-                "INSERT INTO queries (timestamp, user_id, user_name, query, tokens_used, cost_usd, response) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO queries (timestamp, user_id, user_name, query, tokens_used, cost_usd, response, prompt) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     datetime.utcnow().isoformat(timespec="seconds") + "Z",
                     user_id,
@@ -179,6 +185,7 @@ def log_query(user_dir: Path, user_id: str, user_name: str,
                     tokens_used,
                     round(cost_usd, 8),
                     response[:4000],  # cap to avoid huge rows
+                    prompt,
                 )
             )
     except Exception as e:
@@ -2704,6 +2711,8 @@ def cmd_chat(user_message, persona):
     if dynamic_block:
         system_blocks.append({"type": "text", "text": dynamic_block})
 
+    full_prompt = (stable_block + ("\n" + dynamic_block if dynamic_block else "") + "\n\nUser: " + user_message)
+
     payload = json.dumps({
         "model": "claude-sonnet-4-5",
         "max_tokens": 250,
@@ -2727,13 +2736,13 @@ def cmd_chat(user_message, persona):
         usage = data.get("usage", {})
         record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
         reply = data["content"][0]["text"].strip()
-        return f"_{reply}_\n\n— {persona['name']}"
+        return f"_{reply}_\n\n— {persona['name']}", full_prompt
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
         log.error(f"Anthropic API {e.code}: {body}")
-        return f"⚠️ Coach is unavailable right now: {e}"
+        return f"⚠️ Coach is unavailable right now: {e}", None
     except Exception as e:
-        return f"⚠️ Coach is unavailable right now: {e}"
+        return f"⚠️ Coach is unavailable right now: {e}", None
 
 def _is_admin(chat_id: str) -> bool:
     """Admin = ADMIN_CHAT_ID env var, or telegram_chat_id from owner config."""
@@ -3487,13 +3496,14 @@ def handle_message(token, message):
     # ── Plain text — AI coaching chat ─────────────────────────────────────────
     if not text.startswith("/"):
         send_typing(token, chat_id)  # refresh typing before slow Claude call
-        reply = cmd_chat(text, persona)
+        reply, full_prompt = cmd_chat(text, persona)
         if reply:
             _user_name = message.get("from", {}).get("first_name", "") or chat_id
             log_query(
                 _UDIR, chat_id, _user_name, text, reply,
                 tokens_used=_ai_usage["input_tokens"] + _ai_usage["output_tokens"],
                 cost_usd=_ai_usage["cost_usd"],
+                prompt=full_prompt,
             )
             send_message(token, chat_id, reply)
         return
