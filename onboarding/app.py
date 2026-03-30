@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Strava Custom Coach — Customer Onboarding Web App (Secured)
+Custom Coach — Customer Onboarding Web App (Secured)
 Each customer gets their own isolated Docker container with their own bot.
 
 Security measures applied:

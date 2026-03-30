@@ -26,7 +26,7 @@ PYTHON="$(which python3)"
 USER="$(whoami)"
 
 echo ""
-echo "🚀 Strava Custom Coach — Deploy Services"
+echo "🚀 Custom Coach — Deploy Services"
 echo "========================================="
 echo "Project: $PROJECT_DIR"
 echo "User:    $USER"
@@ -42,7 +42,7 @@ echo "⚙️  Creating strava-coach-bot service..."
 
 sudo tee /etc/systemd/system/strava-coach-bot.service > /dev/null <<EOF
 [Unit]
-Description=Strava Custom Coach — Telegram Bot (multi-user)
+Description=Custom Coach — Telegram Bot (multi-user)
 After=network.target
 
 [Service]

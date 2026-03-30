@@ -1,4 +1,4 @@
-# Strava Custom Coach — Onboarding Web App
+# Custom Coach — Onboarding Web App
 
 A zero-code customer onboarding flow. Customers fill in a web form, authorize Strava, and their personal AI coaching bot spins up automatically in its own Docker container.
 
@@ -63,12 +63,14 @@ python3 app.py
 ```
 
 For production, use gunicorn:
+
 ```bash
 pip install gunicorn
 gunicorn -w 2 -b 0.0.0.0:5000 app:app
 ```
 
 Or run as a systemd service:
+
 ```bash
 # /etc/systemd/system/strava-coach-onboarding.service
 [Unit]
@@ -109,17 +111,18 @@ The callback URL will be: `https://yourserver.com/strava/callback`
 
 ## Routes
 
-| Route | Description |
-|-------|-------------|
-| `GET /` | Onboarding form |
-| `POST /onboard` | Form submission → Strava redirect |
-| `GET /strava/callback` | Strava OAuth callback → spins up container |
-| `GET /status/<username>` | JSON status of a user's container |
-| `GET /admin` | Admin overview of all users |
+| Route                    | Description                                |
+| ------------------------ | ------------------------------------------ |
+| `GET /`                  | Onboarding form                            |
+| `POST /onboard`          | Form submission → Strava redirect          |
+| `GET /strava/callback`   | Strava OAuth callback → spins up container |
+| `GET /status/<username>` | JSON status of a user's container          |
+| `GET /admin`             | Admin overview of all users                |
 
 ## Per-customer container
 
 Each customer gets:
+
 - Docker container named `strava-coach-{username}`
 - Config at `~/strava-coach/users/{username}/config/`
   - `config.json` — their Telegram token, Strava credentials, FTP, weight

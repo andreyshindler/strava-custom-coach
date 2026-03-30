@@ -367,7 +367,7 @@ def handle_onboarding(token: str, chat_id: str, text: str, udir: Path):
     if text.lower() in ("/start", "/setup") or not state:
         save_onboard_state(udir, {"step": "name"})
         send_message(token, chat_id,
-            "👋 *Welcome to Strava Custom Coach!*\n\n"
+            "👋 *Welcome to Custom Coach!*\n\n"
             "Let's get you set up in 3 quick steps.\n\n"
             "*What's your name?*\n\n"
             "📋 [Privacy Policy](https://srv1515969.hstgr.cloud/privacy)"
@@ -3754,7 +3754,7 @@ def run(loop=False):
     token  = get_token()
     offset = load_offset()
 
-    log.info(f"🤖 Strava Custom Coach Bot — {'polling loop' if loop else 'one-shot'}")
+    log.info(f"🤖 Custom Coach Bot — {'polling loop' if loop else 'one-shot'}")
 
     # Consecutive error counters — reset to 0 on success
     network_errors     = 0
@@ -3834,7 +3834,7 @@ def run(loop=False):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Strava Custom Coach Telegram bot")
+    parser = argparse.ArgumentParser(description="Custom Coach Telegram bot")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--once",   action="store_true", help="Poll once then exit (for cron)")
     mode.add_argument("--loop",   action="store_true", help="Long-poll continuously")
