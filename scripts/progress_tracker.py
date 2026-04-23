@@ -234,6 +234,9 @@ def update_peak_power(conn: sqlite3.Connection, activities: list) -> list:
                 best_act = act
 
         if not best_act or best_watts == 0:
+            # No cycling activity in this range — clear any stale record (e.g. from a run)
+            conn.execute("DELETE FROM peak_power WHERE duration_label = ?", (label,))
+            conn.commit()
             continue
 
         row = conn.execute(
@@ -500,7 +503,7 @@ def run_post_ride_update(chat_id: str, config_dir, activities: list, plan) -> li
 
             # Record FTP history if estimate changed
             if est_ftp:
-                record_ftp_history(conn, est_ftp, "auto_estimated")
+                record_ftp_history(conn, est_ftp, "auto-estimated")
 
         conn.close()
     except Exception as e:
@@ -551,7 +554,7 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
             update_peak_power(conn, activities)
             est_ftp, _ = estimate_current_ftp(activities)
             if est_ftp:
-                record_ftp_history(conn, est_ftp, "auto_estimated")
+                record_ftp_history(conn, est_ftp, "auto-estimated")
             # Load plan for compliance backfill
             try:
                 plan_file = config_dir / "training_plan.json"
