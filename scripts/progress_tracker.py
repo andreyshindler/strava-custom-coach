@@ -14,7 +14,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(__file__))
-from strava_api import estimate_tss as _estimate_tss_activity  # TSS from Strava activity dict
+from strava_api import estimate_tss as _estimate_tss_activity, CYCLING_TYPES as _CYCLING_TYPES
 
 
 def _md_escape(text: str) -> str:
@@ -154,22 +154,48 @@ def compute_ctl_atl_tsb(activities: list, ftp: int, *, today: datetime | None = 
 # FTP estimation (wraps training_plan.analyse_rides_for_plan)
 # ---------------------------------------------------------------------------
 
-def estimate_current_ftp(activities: list, known_ftp: int = 200):
-    """Return (est_ftp: int|None, source: str) from ride history.
+def estimate_current_ftp(activities: list):
+    """Return (est_ftp: int|None, source: str) estimated from cycling power data.
 
-    Uses local import to avoid circular dependency at module level.
+    Three strategies tried in order, best result wins:
+      1. 20-min best effort (1080–1500 s): avg_watts × 0.95
+      2. 45–90 min best effort (2700–5400 s): avg_watts × 1.05
+      3. Fallback — best avg_watts across any cycling ride × 0.95
+
     Returns (None, "no power data") when no power-meter rides are available.
     """
-    try:
-        from training_plan import analyse_rides_for_plan  # local import — no circular dep
-        result = analyse_rides_for_plan(activities, known_ftp=known_ftp)
-        est = result.get("est_ftp")
-        src = result.get("ftp_source", "estimated")
-        if est and est > 0:
-            return int(est), src
+    power_rides = [
+        a for a in activities
+        if _is_cycling(a) and (a.get("average_watts") or 0) > 50
+    ]
+    if not power_rides:
         return None, "no power data"
-    except Exception:
-        return None, "estimation failed"
+
+    best_ftp = 0
+    source = "no power data"
+
+    # Strategy 1: 20-min best (classic FTP test duration)
+    rides_20 = [a for a in power_rides if 1080 <= a.get("moving_time", 0) <= 1500]
+    if rides_20:
+        est = int(max(a["average_watts"] for a in rides_20) * 0.95)
+        if est > best_ftp:
+            best_ftp = est
+            source = "20-min best effort ×0.95"
+
+    # Strategy 2: 45–90 min best effort (NP correction)
+    rides_45_90 = [a for a in power_rides if 2700 <= a.get("moving_time", 0) <= 5400]
+    if rides_45_90:
+        est = int(max(a["average_watts"] for a in rides_45_90) * 1.05)
+        if est > best_ftp:
+            best_ftp = est
+            source = "45–90 min best effort ×1.05"
+
+    # Strategy 3: fallback from any ride
+    if not best_ftp:
+        best_ftp = int(max(a["average_watts"] for a in power_rides) * 0.95)
+        source = "estimated from power history"
+
+    return (best_ftp, source) if best_ftp > 0 else (None, "no power data")
 
 
 # ---------------------------------------------------------------------------
@@ -182,8 +208,14 @@ _PEAK_POWER_RANGES = {
 }
 
 
+def _is_cycling(act: dict) -> bool:
+    """Return True if the activity is a cycling type."""
+    t = act.get("sport_type") or act.get("type", "")
+    return t in _CYCLING_TYPES
+
+
 def update_peak_power(conn: sqlite3.Connection, activities: list) -> list:
-    """Update 5-min and 20-min peak power records from activity cache.
+    """Update 5-min and 20-min peak power records from cycling activities only.
 
     Uses average_watts of rides whose moving_time falls within the proxy
     duration range.  Returns list of PR announcement strings (empty if none).
@@ -193,6 +225,8 @@ def update_peak_power(conn: sqlite3.Connection, activities: list) -> list:
         best_watts = 0
         best_act = None
         for act in activities:
+            if not _is_cycling(act):
+                continue
             mt = act.get("moving_time", 0)
             w = act.get("average_watts")
             if w and lo <= mt <= hi and w > best_watts:
@@ -206,7 +240,7 @@ def update_peak_power(conn: sqlite3.Connection, activities: list) -> list:
             "SELECT best_watts FROM peak_power WHERE duration_label = ?", (label,)
         ).fetchone()
 
-        if row is None or best_watts > row["best_watts"]:
+        if row is None or best_watts != row["best_watts"]:
             date_str = (best_act.get("start_date_local", "") or "")[:10]
             name = best_act.get("name", "Unknown ride")
             conn.execute(
@@ -441,7 +475,7 @@ def run_post_ride_update(chat_id: str, config_dir, activities: list, plan) -> li
 
             # Current fitness metrics
             form = compute_ctl_atl_tsb(activities, ftp)
-            est_ftp, ftp_src = estimate_current_ftp(activities, known_ftp=ftp)
+            est_ftp, ftp_src = estimate_current_ftp(activities)
             compliance_history = get_compliance_history(conn, n_weeks=8)
 
             fitness_data = {
@@ -515,7 +549,7 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
         )
         if needs_bootstrap and activities:
             update_peak_power(conn, activities)
-            est_ftp, _ = estimate_current_ftp(activities, known_ftp=ftp)
+            est_ftp, _ = estimate_current_ftp(activities)
             if est_ftp:
                 record_ftp_history(conn, est_ftp, "auto_estimated")
             # Load plan for compliance backfill
