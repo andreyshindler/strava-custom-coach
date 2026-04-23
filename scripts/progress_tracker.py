@@ -19,7 +19,7 @@ from strava_api import estimate_tss as _estimate_tss_activity, CYCLING_TYPES as 
 
 def _md_escape(text: str) -> str:
     """Escape characters that break Telegram MarkdownV1 in user-supplied strings."""
-    return str(text).replace("*", "⁎").replace("_", "ⳕ").replace("`", "'")
+    return str(text).replace("*", "⁎").replace("_", "-").replace("`", "'")
 
 # ---------------------------------------------------------------------------
 # Adjustment trigger constants
@@ -569,6 +569,10 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
 
     try:
         conn = open_db(config_dir)
+
+        # Always refresh peak power to clear stale records (e.g. runs recorded before cycling filter)
+        if activities:
+            update_peak_power(conn, activities)
 
         form = compute_ctl_atl_tsb(activities, ftp) if activities else {"ctl": 0.0, "atl": 0.0, "tsb": 0.0}
         ftp_rows = get_ftp_history(conn)
