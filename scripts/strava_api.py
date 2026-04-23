@@ -18,7 +18,7 @@ from strava_cache import load_cached_activities, update_cache_with_new_activitie
 CONFIG_FILE = Path.home() / ".config" / "strava" / "config.json"
 
 
-def urlopen_with_retry(req, *, timeout=10, retries=3):
+def urlopen_with_retry(req, *, timeout=10, retries=3) -> bytes:
     """urlopen with exponential-backoff retry for transient errors.
 
     Retries on network errors (URLError), 5xx server errors, and 429 rate limits.
@@ -39,6 +39,7 @@ def urlopen_with_retry(req, *, timeout=10, retries=3):
                 time.sleep(2 ** attempt)
                 continue
             raise
+    raise RuntimeError("urlopen_with_retry: exhausted retries without returning")  # unreachable
 TOKEN_FILE  = Path.home() / ".config" / "strava" / "tokens.json"
 
 

@@ -29,7 +29,10 @@ Usage:
     # 0 20 * * * /path/to/scripts/telegram_bot.py --notify
 """
 
-import fcntl
+try:
+    import fcntl  # Unix only
+except ImportError:
+    fcntl = None  # type: ignore[assignment]
 import json
 import logging
 import logging.handlers
@@ -37,6 +40,7 @@ import os
 import sqlite3
 import sys
 import time
+import urllib.error
 import urllib.request
 import urllib.parse
 from contextlib import contextmanager
@@ -176,7 +180,7 @@ def _db_init(user_dir: Path):
 def log_query(user_dir: Path, user_id: str, user_name: str,
               query: str, response: str,
               tokens_used: int = 0, cost_usd: float = 0.0,
-              prompt: str = None):
+              prompt: str | None = None):
     """Append one row to the user's query history database."""
     try:
         _db_init(user_dir)
@@ -198,7 +202,7 @@ def log_query(user_dir: Path, user_id: str, user_name: str,
     except Exception as e:
         log.warning(f"[history] Failed to log query for {user_id}: {e}")
 
-def cmd_notify(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str:
+def cmd_notify(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str | None:
     """Toggle or show automatic ride notification setting."""
     cfg_file = user_dir / "config.json"
     cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
@@ -232,7 +236,7 @@ def cmd_notify(user_dir: Path, args: list, token: str = "", chat_id: str = "") -
         return "Usage: `/notify on` or `/notify off`"
 
 
-def cmd_notifyplan(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str:
+def cmd_notifyplan(user_dir: Path, args: list, token: str = "", chat_id: str = "") -> str | None:
     """Toggle or show the next-day plan preparation reminder setting."""
     cfg_file = user_dir / "config.json"
     cfg = json.loads(cfg_file.read_text()) if cfg_file.exists() else {}
@@ -296,21 +300,21 @@ def cmd_quota(user_dir: Path) -> str:
     )
 
 
-def _quota_bar(new_allowance: float, spent: float) -> str:
-    pct_used   = (spent / new_allowance * 100) if new_allowance > 0 else 0
+def _quota_bar(new_allowance: float | None, spent: float) -> str:
+    pct_used   = (spent / new_allowance * 100) if new_allowance and new_allowance > 0 else 0
     pct_left   = max(0.0, 100 - pct_used)
     bar_filled = int(pct_used / 10)
     bar        = "█" * bar_filled + "░" * (10 - bar_filled)
     return f"`{bar}` {pct_left:.0f}% remaining"
 
-def _topup_msg(new_allowance: float, spent: float) -> str:
+def _topup_msg(new_allowance: float | None, spent: float) -> str:
     return (
         f"💰 *Your allowance has been topped up!*\n\n"
         f"{_quota_bar(new_allowance, spent)}\n\n"
         f"Keep coaching! Use /help to see what I can do."
     )
 
-def _decrease_msg(new_allowance: float, spent: float) -> str:
+def _decrease_msg(new_allowance: float | None, spent: float) -> str:
     return (
         f"ℹ️ *Your allowance has been adjusted.*\n\n"
         f"{_quota_bar(new_allowance, spent)}\n\n"
@@ -655,7 +659,7 @@ def send_typing(token, chat_id):
         pass
 
 
-def send_error_alert(error_type: str, detail: str, consecutive: int = 1):
+def send_error_alert(error_type: str, detail: str | BaseException, consecutive: int = 1):
     """Send an error alert to the user via Telegram.
     Only alerts on the 1st occurrence and every 10th after that,
     to avoid spamming the user during prolonged outages.
@@ -1139,7 +1143,7 @@ def cmd_help(persona):
     )
 
 
-def cmd_coach(args, persona, token: str = "", chat_id: str = "") -> str:
+def cmd_coach(args, persona, token: str = "", chat_id: str = "") -> str | None:
     """Show current coach or switch to a new one."""
     if not args:
         if token and chat_id:
@@ -1558,7 +1562,7 @@ def cmd_trends(persona, days=30):
 
     lines.append(f"\n_{persona['coach_label'].replace('💬 ','')}: The trend tells the story._")
 
-    if _PROGRESS_AVAILABLE:
+    if _PROGRESS_AVAILABLE and _progress_tracker is not None:
         try:
             suffix = _progress_tracker.format_trends_fitness_suffix(_UDIR)
             if suffix:
@@ -1571,76 +1575,12 @@ def cmd_trends(persona, days=30):
 
 def cmd_progress(persona):
     """Show full fitness dashboard: CTL/ATL/TSB, FTP history, peak power, plan compliance."""
-    if not _PROGRESS_AVAILABLE:
+    if not _PROGRESS_AVAILABLE or _progress_tracker is None:
         return "Progress tracking module not available."
     try:
         return _progress_tracker.format_progress_dashboard(_UDIR, persona_name=persona["name"])
     except Exception as e:
         return f"Could not load fitness data: {e}"
-
-
-    """Answer a plain text question in the coach's voice using Claude API."""
-    import json as _json
-
-    _zf = persona.get("zone_feedback", {})
-    _voice_samples = []
-    for _v in list(_zf.values())[:3]:
-        if isinstance(_v, list):
-            _voice_samples.append(_v[0])
-        elif isinstance(_v, str) and _v != _zf.get("no_ftp", ""):
-            _voice_samples.append(_v)
-    _voice_hint = " | ".join(_voice_samples[:2]) if _voice_samples else persona.get("header_quote", "")
-
-    system = (
-        f"You are {persona['name']}, a cycling coach. {persona['tagline']}\n"
-        f"Speak in first person, in your authentic voice — exactly like these examples: {_voice_hint}\n\n"
-        f"Answer the athlete's question in character. Be direct, specific, and brief. "
-        f"Max 3-4 sentences. No bullet points. Sound like a real coach talking to an athlete."
-    )
-
-    try:
-        # SECURITY: API key read from env var (injected by Docker -e flag at runtime).
-        # It is never stored in config.json on disk, so customers cannot access it.
-        config = load_config(_UDIR)
-        api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-        if not api_key:
-            auth_file = Path.home() / ".openclaw/agents/main/agent/auth-profiles.json"
-            if auth_file.exists():
-                auth = _json.loads(auth_file.read_text())
-                for v in auth.values():
-                    if isinstance(v, dict) and v.get("provider") == "anthropic":
-                        api_key = v.get("token", "")
-                        break
-
-        if not api_key:
-            return f"_{persona['name']}: Ask me anything about training — I'm here. (Set anthropic_api_key in config to enable AI answers.)_"
-
-        payload = _json.dumps({
-            "model": "claude-sonnet-4-20250514",
-            "max_tokens": 300,
-            "system": system,
-            "messages": [{"role": "user", "content": question}]
-        }).encode()
-
-        req = urllib.request.Request(
-            "https://api.anthropic.com/v1/messages",
-            data=payload,
-            headers={
-                "Content-Type":      "application/json",
-                "anthropic-version": "2023-06-01",
-                "x-api-key":         api_key,
-            },
-            method="POST"
-        )
-
-        data   = _json.loads(urlopen_with_retry(req, timeout=15))
-        usage  = data.get("usage", {})
-        record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
-        answer = data["content"][0]["text"]
-        return f"_{persona['name']}: {answer}_"
-
-    except Exception as e:
-        return f"_{persona['name']}: Focus on the basics — train consistently, recover well, trust the process._"
 
 
 def _archive_plan(udir: Path):
@@ -1663,17 +1603,20 @@ def load_plan_safe():
         return json.loads(plan_file.read_text())
     except Exception as e:
         log.warning(f"training_plan.json corrupted ({e}) — use /deleteplan then /newplan to recover")
+        return {}
 
 @contextmanager
 def _wizard_lock(udir):
     """Inter-process exclusive lock for wizard state in a given user directory."""
     udir.mkdir(parents=True, exist_ok=True)
     with open(udir / "wizard.lock", "w") as _lf:
-        fcntl.flock(_lf, fcntl.LOCK_EX)
+        if fcntl is not None:
+            fcntl.flock(_lf, fcntl.LOCK_EX)  # type: ignore[attr-defined]
         try:
             yield
         finally:
-            fcntl.flock(_lf, fcntl.LOCK_UN)
+            if fcntl is not None:
+                fcntl.flock(_lf, fcntl.LOCK_UN)  # type: ignore[attr-defined]
 
 
 def load_wizard():
@@ -1794,7 +1737,7 @@ def _wizard_send(token, chat_id, reply, state):
         send_message(token, chat_id, reply)
 
 
-def cmd_newplan(persona, token: str = "", chat_id: str = "") -> str:
+def cmd_newplan(persona, token: str = "", chat_id: str = "") -> str | None:
     """Start a new plan creation wizard."""
     # Block if user has no quota set or is over limit
     quota_ok, _, allowance = check_demo_quota(_UDIR)
@@ -2785,7 +2728,7 @@ def _is_admin(chat_id: str) -> bool:
     return bool(admin) and chat_id == admin
 
 
-def cmd_admin(chat_id: str, args: list) -> str:
+def cmd_admin(chat_id: str, args: list) -> str | None:
     """Admin commands — only accessible to the bot owner.
 
     Usage:
@@ -2975,7 +2918,7 @@ def cmd_admin(chat_id: str, args: list) -> str:
                         "You now have access to your AI coach.\n"
                         "Ask me anything or use /help to see what I can do."
                     )
-                elif adding or new_allowance >= prev_allowance:
+                elif adding or (new_allowance is not None and new_allowance >= prev_allowance):
                     user_msg = _topup_msg(new_allowance, spent)
                 else:
                     user_msg = _decrease_msg(new_allowance, spent)
@@ -3256,7 +3199,7 @@ def cmd_deleteplan(persona, token: str = "", chat_id: str = ""):
 
 def transcribe_voice(token, file_id):
     """Download a Telegram voice/audio file and transcribe it with Whisper."""
-    if not _WHISPER_AVAILABLE:
+    if not _WHISPER_AVAILABLE or _whisper is None:
         log.warning("Whisper not installed — voice transcription unavailable (pip install openai-whisper)")
         return None
 
@@ -3281,7 +3224,7 @@ def transcribe_voice(token, file_id):
         model = _whisper.load_model("base")
         result = model.transcribe(tmp_path, language="en")
         os.unlink(tmp_path)
-        return result.get("text", "").strip()
+        return str(result.get("text") or "").strip()
     except Exception as e:
         log.warning(f"Whisper transcription error: {e}")
         return None
@@ -3385,7 +3328,7 @@ def handle_message(token, message):
                         "You now have access to your AI coach.\n"
                         "Ask me anything or use /help to see what I can do."
                     )
-                elif adding or new_allowance >= prev_allowance:
+                elif adding or (new_allowance is not None and new_allowance >= prev_allowance):
                     user_msg = _topup_msg(new_allowance, spent)
                 else:
                     user_msg = _decrease_msg(new_allowance, spent)
@@ -3578,7 +3521,7 @@ def handle_message(token, message):
     elif cmd == "ride":
         result = cmd_ride(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
-        if _PROGRESS_AVAILABLE and reply and "No rides" not in reply:
+        if _PROGRESS_AVAILABLE and _progress_tracker is not None and reply and "No rides" not in reply:
             try:
                 from strava_cache import load_cached_activities, CACHE_DIR
                 _acts = load_cached_activities(CACHE_DIR)

@@ -33,6 +33,7 @@ import hmac
 import json
 import os
 import sys
+import urllib.error
 import urllib.request
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -237,8 +238,8 @@ def handle_activity_event(event):
 
 class WebhookHandler(BaseHTTPRequestHandler):
 
-    def log_message(self, fmt, *args):
-        print(f"[webhook] {self.address_string()} {fmt % args}")
+    def log_message(self, format, *args):  # noqa: A002
+        print(f"[webhook] {self.address_string()} {format % args}")
 
     def _verify_token(self):
         cfg = load_config()

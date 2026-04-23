@@ -1,5 +1,5 @@
 ---
-name: strava-custom-coach
+name: custom-coach
 description: Track and analyze cycling performance from Strava. Use when analyzing ride data, reviewing fitness trends, understanding workout performance, or providing insights on cycling training. Automatically monitors new rides and provides performance analysis. Also use when a user wants to create a training plan, set a cycling goal (event, distance, power, weight loss), get a weekly training schedule, or ask "what should I do this week" — this skill will generate a personalized plan based on their Strava history and desired goals.
 ---
 

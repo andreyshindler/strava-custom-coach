@@ -81,7 +81,7 @@ def open_db(config_dir: Path) -> sqlite3.Connection:
 # ---------------------------------------------------------------------------
 
 def record_ftp_history(conn: sqlite3.Connection, ftp_watts: int, source: str,
-                        *, recorded_at: str = None) -> None:
+                        *, recorded_at: str | None = None) -> None:
     """Insert an FTP reading only if it differs from the most recent stored value."""
     row = conn.execute(
         "SELECT ftp_watts FROM ftp_history ORDER BY id DESC LIMIT 1"
@@ -109,7 +109,7 @@ def get_ftp_history(conn: sqlite3.Connection) -> list:
 # CTL / ATL / TSB  (computed on demand — no daily TSS table needed)
 # ---------------------------------------------------------------------------
 
-def compute_ctl_atl_tsb(activities: list, ftp: int, *, today: datetime = None) -> dict:
+def compute_ctl_atl_tsb(activities: list, ftp: int, *, today: datetime | None = None) -> dict:
     """Compute CTL, ATL, and TSB using EMA over all activity dates.
 
     CTL uses a 42-day time constant; ATL uses 7 days.
