@@ -490,10 +490,14 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
     except Exception:
         ftp = 220
 
-    # Load activities
+    # Load activities — try per-user cache first, fetch from Strava if empty
     try:
         from strava_cache import load_cached_activities, CACHE_DIR
-        activities = load_cached_activities(CACHE_DIR)
+        from strava_api import get_activities
+        cache_dir = CACHE_DIR / config_dir.name if config_dir.name != "strava" else CACHE_DIR
+        activities = load_cached_activities(cache_dir)
+        if not activities:
+            activities = get_activities(days=60, limit=200, user_dir=config_dir)
     except Exception:
         activities = []
 
@@ -604,7 +608,11 @@ def format_trends_fitness_suffix(config_dir) -> str:
 
     try:
         from strava_cache import load_cached_activities, CACHE_DIR
-        activities = load_cached_activities(CACHE_DIR)
+        from strava_api import get_activities
+        cache_dir = CACHE_DIR / config_dir.name if config_dir.name != "strava" else CACHE_DIR
+        activities = load_cached_activities(cache_dir)
+        if not activities:
+            activities = get_activities(days=60, limit=200, user_dir=config_dir)
     except Exception:
         activities = []
 
