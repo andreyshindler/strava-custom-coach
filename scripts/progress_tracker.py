@@ -203,7 +203,7 @@ def estimate_current_ftp(activities: list):
 # ---------------------------------------------------------------------------
 
 _PEAK_POWER_RANGES = {
-    "5min":  (240, 360),    # 4–6 minutes
+    "5min":  (180, 600),    # 3–10 minutes
     "20min": (1080, 1500),  # 18–25 minutes
 }
 
