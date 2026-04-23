@@ -692,11 +692,21 @@ def send_error_alert(error_type: str, detail: str | BaseException, consecutive: 
 def send_message(token, chat_id, text):
     chunks = [text[i:i+4000] for i in range(0, len(text), 4000)]
     for chunk in chunks:
-        tg_api(token, "sendMessage", {
-            "chat_id":    chat_id,
-            "text":       chunk,
-            "parse_mode": "Markdown",
-        })
+        try:
+            tg_api(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       chunk,
+                "parse_mode": "Markdown",
+            })
+        except urllib.error.HTTPError as e:
+            if e.code == 400:
+                # Markdown parse error — retry as plain text
+                tg_api(token, "sendMessage", {
+                    "chat_id": chat_id,
+                    "text":    chunk,
+                })
+            else:
+                raise
 
 
 def send_message_with_voice_btn(token, chat_id, text, voice_text):

@@ -16,6 +16,11 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(__file__))
 from strava_api import estimate_tss as _estimate_tss_activity  # TSS from Strava activity dict
 
+
+def _md_escape(text: str) -> str:
+    """Escape characters that break Telegram MarkdownV1 in user-supplied strings."""
+    return str(text).replace("*", "⁎").replace("_", "ⳕ").replace("`", "'")
+
 # ---------------------------------------------------------------------------
 # Adjustment trigger constants
 # ---------------------------------------------------------------------------
@@ -552,7 +557,7 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
     if ftp_rows:
         for i, row in enumerate(ftp_rows):
             marker = "  \u2190 current" if i == len(ftp_rows) - 1 else ""
-            lines.append(f"  {row['recorded_at'][:10]}  {row['ftp_watts']}W  ({row['source']}){marker}")
+            lines.append(f"  {row['recorded_at'][:10]}  {row['ftp_watts']}W  ({_md_escape(row['source'])}){marker}")
     else:
         lines.append(f"  (no history yet \u2014 current config FTP: {ftp}W)")
 
@@ -561,7 +566,7 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
     for label in ("5min", "20min"):
         p = peaks.get(label)
         if p:
-            lines.append(f"  {label} best:  {p['best_watts']}W  ({p['activity_name']}, {p['achieved_on']})")
+            lines.append(f"  {label} best:  {p['best_watts']}W  ({_md_escape(p['activity_name'])}, {p['achieved_on']})")
         else:
             lines.append(f"  {label} best:  \u2014 (no data yet)")
 
