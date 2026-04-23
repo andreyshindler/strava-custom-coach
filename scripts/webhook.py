@@ -216,6 +216,22 @@ def handle_activity_event(event):
     except Exception as exc:
         print(f"[webhook] Telegram error: {exc}")
 
+    # Post-ride fitness progress update (single-user mode only)
+    try:
+        import progress_tracker
+        import json as _json
+        from strava_cache import load_cached_activities, CACHE_DIR
+        from pathlib import Path
+        _cfg_dir = Path.home() / ".config" / "strava"
+        _acts = load_cached_activities(CACHE_DIR)
+        _plan_file = _cfg_dir / "training_plan.json"
+        _plan = _json.loads(_plan_file.read_text()) if _plan_file.exists() else None
+        _chat_id = str(cfg.get("telegram_chat_id", ""))
+        for _note in progress_tracker.run_post_ride_update(_chat_id, _cfg_dir, _acts, _plan):
+            _tg_send(_note)
+    except Exception as _exc:
+        print(f"[webhook] progress update failed: {_exc}")
+
 
 # ── HTTP request handler ───────────────────────────────────────────────────────
 

@@ -1440,3 +1440,25 @@ def analyse_rides_for_plan(activities, known_ftp=200):
         "suggested_weeks":    suggested_weeks,
         "suggested_xco":      primary_type in ("mtb", "mixed"),
     }
+
+
+def adjust_future_weeks(plan, scale_factor, start_week_idx, *, horizon=None):
+    """Rescale TSS in-place for future plan weeks.
+
+    Modifies plan["weekly_plans"][i]["total_tss"] and each day's "tss" by
+    multiplying by scale_factor (rounded to int).  Does not touch dates,
+    workout names, or any other fields.
+
+    Args:
+        plan:            training plan dict (mutated in place)
+        scale_factor:    multiplicative factor, e.g. 0.85 or 1.10
+        start_week_idx:  index into plan["weekly_plans"] to start from (inclusive)
+        horizon:         if given, only rescale this many weeks; None = all remaining
+    """
+    weeks = plan.get("weekly_plans", [])
+    end_idx = start_week_idx + horizon if horizon is not None else len(weeks)
+    for i in range(start_week_idx, min(end_idx, len(weeks))):
+        week = weeks[i]
+        week["total_tss"] = round(week.get("total_tss", 0) * scale_factor)
+        for day in week.get("days", []):
+            day["tss"] = round(day.get("tss", 0) * scale_factor)

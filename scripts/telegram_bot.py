@@ -50,6 +50,13 @@ except ImportError:
     _whisper = None
     _WHISPER_AVAILABLE = False
 
+try:
+    import progress_tracker as _progress_tracker
+    _PROGRESS_AVAILABLE = True
+except ImportError:
+    _progress_tracker = None
+    _PROGRESS_AVAILABLE = False
+
 sys.path.insert(0, os.path.dirname(__file__))
 from personas import PERSONAS, load_active_persona, get_persona, save_active_persona, pick_feedback
 from strava_api import get_activities, load_config, meters_to_km, seconds_to_hm, estimate_tss, urlopen_with_retry
@@ -572,6 +579,7 @@ CMD_GROUPS = {
     "notifyplan":    "free",
     "leave":         "free",
     "admin":     "free",
+    "progress":  "strava_only",
 }
 
 
@@ -1122,6 +1130,7 @@ def cmd_help(persona):
         f"  /stats 30 — last 30 days summary (or /stats30)\n"
         f"  /trends — week-by-week trend analysis (30 days)\n"
         f"  /trends 90 — trends for last N days\n"
+        f"  /progress — fitness dashboard: CTL/ATL/TSB, FTP history, peak power\n"
         f"  /quota — check your AI usage & limit\n"
         f"  /notify — toggle post-ride notifications\n"
         f"  /notifyplan — toggle next-day training reminders (20:00)\n"
@@ -1548,7 +1557,28 @@ def cmd_trends(persona, days=30):
         )
 
     lines.append(f"\n_{persona['coach_label'].replace('💬 ','')}: The trend tells the story._")
+
+    if _PROGRESS_AVAILABLE:
+        try:
+            suffix = _progress_tracker.format_trends_fitness_suffix(_UDIR)
+            if suffix:
+                lines.append(suffix)
+        except Exception:
+            pass
+
     return "\n".join(lines)
+
+
+def cmd_progress(persona):
+    """Show full fitness dashboard: CTL/ATL/TSB, FTP history, peak power, plan compliance."""
+    if not _PROGRESS_AVAILABLE:
+        return "Progress tracking module not available."
+    try:
+        return _progress_tracker.format_progress_dashboard(_UDIR, persona_name=persona["name"])
+    except Exception as e:
+        return f"Could not load fitness data: {e}"
+
+
     """Answer a plain text question in the coach's voice using Claude API."""
     import json as _json
 
@@ -3548,6 +3578,15 @@ def handle_message(token, message):
     elif cmd == "ride":
         result = cmd_ride(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
+        if _PROGRESS_AVAILABLE and reply and "No rides" not in reply:
+            try:
+                from strava_cache import load_cached_activities, CACHE_DIR
+                _acts = load_cached_activities(CACHE_DIR)
+                _plan = load_plan_safe() or None
+                for _note in _progress_tracker.run_post_ride_update(chat_id, _UDIR, _acts, _plan):
+                    send_message(token, chat_id, _note)
+            except Exception as _pe:
+                log.warning(f"[progress] post-ride update failed: {_pe}")
     elif cmd == "voice":
         reply = cmd_voice(persona, chat_id, token)
         if reply is None:
@@ -3612,6 +3651,8 @@ def handle_message(token, message):
             reply = cmd_trends(persona, days=int(args[0]))
         else:
             reply = cmd_trends(persona, days=30)
+    elif cmd == "progress":
+        reply = cmd_progress(persona)
     elif cmd == "admin":
         reply = cmd_admin(chat_id, args)
         if reply is None:
