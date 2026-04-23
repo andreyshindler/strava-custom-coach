@@ -497,9 +497,29 @@ def format_progress_dashboard(config_dir, persona_name: str = "") -> str:
     except Exception:
         activities = []
 
-    db = db_path(config_dir)
-    if not db.exists():
-        return "No fitness data yet. Run /ride after your next workout to start tracking."
+    # Auto-backfill on first use so new users see data immediately
+    try:
+        conn = open_db(config_dir)
+        needs_bootstrap = (
+            conn.execute("SELECT COUNT(*) FROM ftp_history").fetchone()[0] == 0
+            and conn.execute("SELECT COUNT(*) FROM peak_power").fetchone()[0] == 0
+        )
+        if needs_bootstrap and activities:
+            update_peak_power(conn, activities)
+            est_ftp, _ = estimate_current_ftp(activities, known_ftp=ftp)
+            if est_ftp:
+                record_ftp_history(conn, est_ftp, "auto_estimated")
+            # Load plan for compliance backfill
+            try:
+                plan_file = config_dir / "training_plan.json"
+                if plan_file.exists():
+                    _plan = json.loads(plan_file.read_text())
+                    record_weekly_compliance(conn, _plan, activities, ftp)
+            except Exception:
+                pass
+        conn.close()
+    except Exception as e:
+        return f"Could not load fitness data: {e}"
 
     try:
         conn = open_db(config_dir)
