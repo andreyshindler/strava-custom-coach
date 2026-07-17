@@ -20,6 +20,10 @@ services:
     environment:
       - STRAVA_TELEGRAM_BOT_TOKEN=${STRAVA_TELEGRAM_BOT_TOKEN}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - NVIDIA_CHAT_MODEL=${NVIDIA_CHAT_MODEL:-meta/llama-3.3-70b-instruct}
+      - NVIDIA_PLAN_MODEL=${NVIDIA_PLAN_MODEL:-meta/llama-3.3-70b-instruct}
+      - AI_PROVIDER=${AI_PROVIDER:-anthropic}
       - PUBLIC_URL=${PUBLIC_URL}
       - WEB_URL=${PUBLIC_URL}/admin
       - STRAVA_CLIENT_ID=${STRAVA_CLIENT_ID}
@@ -41,6 +45,10 @@ services:
       - FLASK_SECRET=${FLASK_SECRET}
       - PUBLIC_URL=${PUBLIC_URL}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY:-}
+      - NVIDIA_CHAT_MODEL=${NVIDIA_CHAT_MODEL:-meta/llama-3.3-70b-instruct}
+      - NVIDIA_PLAN_MODEL=${NVIDIA_PLAN_MODEL:-meta/llama-3.3-70b-instruct}
+      - AI_PROVIDER=${AI_PROVIDER:-anthropic}
       - STRAVA_TELEGRAM_BOT_TOKEN=${STRAVA_TELEGRAM_BOT_TOKEN}
       - ADMIN_USER=${ADMIN_USER:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
