@@ -64,6 +64,7 @@ except ImportError:
 sys.path.insert(0, os.path.dirname(__file__))
 from personas import PERSONAS, load_active_persona, get_persona, save_active_persona, pick_feedback
 from strava_api import get_activities, load_config, meters_to_km, seconds_to_hm, estimate_tss, urlopen_with_retry
+import ai_client
 
 CONFIG_DIR   = Path.home() / ".config" / "strava"
 OFFSET_FILE  = CONFIG_DIR / "telegram_update_offset.txt"
@@ -574,6 +575,8 @@ CMD_GROUPS = {
     # free: no API calls, instant always
     "help":      "free",
     "coach":     "free",
+    "provider":  "free",
+    "ai":        "free",
     "deleteplan":"free",
     "start":     "free",
     "setup":     "free",
@@ -901,6 +904,22 @@ def handle_callback(token, callback_query):
         log_query(udir, chat_id, _user_name, f"[coach:{new_id}]", reply)
         return
 
+    if data.startswith("provider_"):
+        new_id = data[len("provider_"):]
+        udir = get_user_dir(chat_id)
+        if new_id not in ai_client.PROVIDERS:
+            send_message(token, chat_id, "Unknown provider.")
+            return
+        if not ai_client.has_key(new_id):
+            send_message(token, chat_id, f"⚠️ No API key configured for `{new_id}`.")
+            return
+        _save_provider(udir, new_id)
+        reply = f"✅ *AI provider switched to {_PROVIDER_LABELS.get(new_id, new_id)}*"
+        send_message(token, chat_id, reply)
+        _user_name = callback_query.get("from", {}).get("first_name", "") or chat_id
+        log_query(udir, chat_id, _user_name, f"[provider:{new_id}]", reply)
+        return
+
     if data in ("notify_on", "notify_off"):
         udir = get_user_dir(chat_id)
         reply = cmd_notify(udir, [data[len("notify_"):]])
@@ -1146,6 +1165,7 @@ def cmd_help(persona):
         f"  /trends 90 — trends for last N days\n"
         f"  /progress — fitness dashboard: CTL/ATL/TSB, FTP history, peak power\n"
         f"  /quota — check your AI usage & limit\n"
+        f"  /provider — show or switch AI provider (anthropic|nvidia)\n"
         f"  /notify — toggle post-ride notifications\n"
         f"  /notifyplan — toggle next-day training reminders (20:00)\n"
         f"  /contact — get in touch with support\n"
@@ -1184,6 +1204,62 @@ def cmd_coach(args, persona, token: str = "", chat_id: str = "") -> str | None:
         f"✅ *Coach switched to {p['name']}*\n\n"
         f"{p['greeting']}"
     )
+
+
+_PROVIDER_LABELS = {
+    "anthropic": "Anthropic (Claude)",
+    "nvidia":    "NVIDIA NIM",
+}
+
+
+def _save_provider(udir: Path, provider: str):
+    """Persist ai_provider to the user's config.json, preserving other keys."""
+    cfg_file = udir / "config.json"
+    cfg_file.parent.mkdir(parents=True, exist_ok=True)
+    config = {}
+    if cfg_file.exists():
+        try:
+            config = json.loads(cfg_file.read_text())
+        except Exception:
+            config = {}
+    config["ai_provider"] = provider
+    cfg_file.write_text(json.dumps(config, indent=2))
+
+
+def cmd_provider(args, token: str = "", chat_id: str = "") -> str | None:
+    """Show or switch the active AI provider (anthropic | nvidia)."""
+    try:
+        current = ai_client.resolve_provider(load_config(_UDIR))
+    except Exception:
+        current = ai_client.resolve_provider(None)
+
+    if not args:
+        if token and chat_id:
+            buttons = []
+            for pid in ai_client.PROVIDERS:
+                label = _PROVIDER_LABELS.get(pid, pid)
+                mark  = "✅ " if pid == current else ""
+                buttons.append([{"text": f"{mark}{label}", "callback_data": f"provider_{pid}"}])
+            tg_api_json(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       f"*AI provider:* {_PROVIDER_LABELS.get(current, current)}\n\nPick a provider:",
+                "parse_mode": "Markdown",
+                "reply_markup": {"inline_keyboard": buttons},
+            })
+            return None
+        lines = [f"*AI provider:* {_PROVIDER_LABELS.get(current, current)}\n\n*Available:*"]
+        for pid in ai_client.PROVIDERS:
+            marker = " ✅" if pid == current else ""
+            lines.append(f"  `{pid}` — {_PROVIDER_LABELS.get(pid, pid)}{marker}")
+        return "\n".join(lines)
+
+    new_id = args[0].lower()
+    if new_id not in ai_client.PROVIDERS:
+        return f"Unknown provider `{new_id}`. Options: `anthropic` | `nvidia`"
+    if not ai_client.has_key(new_id):
+        return f"⚠️ Cannot switch to `{new_id}` — no API key configured. Contact your administrator."
+    _save_provider(_UDIR, new_id)
+    return f"✅ *AI provider switched to {_PROVIDER_LABELS.get(new_id, new_id)}*"
 
 
 def cmd_ride(persona):
@@ -2336,31 +2412,19 @@ def _generate_ai_plan(state, persona):
         f']}}]}}'
     )
 
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-    payload = json.dumps({
-        "model": "claude-haiku-4-5-20251001",
-        "max_tokens": 8000,
-        "system": f"You are {persona['name']}, a world-class cycling coach. {persona.get('tagline','')} Output only valid JSON.",
-        "messages": [{"role": "user", "content": prompt}],
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01",
-        },
-        method="POST",
+    provider = ai_client.resolve_provider(load_config(_UDIR))
+    result = ai_client.chat(
+        provider=provider,
+        model=ai_client.model_for("plan", provider),
+        system=f"You are {persona['name']}, a world-class cycling coach. {persona.get('tagline','')} Output only valid JSON.",
+        user_message=prompt,
+        max_tokens=8000,
+        timeout=60,
     )
-    with urllib.request.urlopen(req, timeout=60) as resp:
-        data = json.loads(resp.read())
+    if not ai_client.is_free(provider):
+        record_ai_cost(_UDIR, result["input_tokens"], result["output_tokens"])
 
-    usage = data.get("usage", {})
-    record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
-
-    raw = data["content"][0]["text"].strip()
+    raw = result["text"].strip()
     # Strip markdown code fences if present
     if raw.startswith("```"):
         raw = raw.split("```")[1]
@@ -2612,16 +2676,15 @@ def _get_cached_activities():
 
 def cmd_chat(user_message, persona):
     """Send a plain text message to Claude API with persona + Strava context."""
-    config  = load_config(_UDIR)
-    ftp     = config.get("ftp", 220)
+    config   = load_config(_UDIR)
+    ftp      = config.get("ftp", 220)
+    provider = ai_client.resolve_provider(config)
     # SECURITY: env var is the primary source; config.json fallback removed.
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-
-    if not api_key:
+    if not ai_client.has_key(provider):
         return (
-            f"💬 *{persona['name']} would answer, but no Anthropic API key is set.*\n\n"
-            f"Add it to ~/.config/strava/config.json:\n"
-            f"Contact your administrator to configure the API key."
+            f"💬 *{persona['name']} would answer, but no {provider} API key is set.*\n\n"
+            f"Contact your administrator to configure the API key.",
+            None,
         )
 
     # ── Strava context (cached, max 3 rides, compact) ─────────────────────────
@@ -2696,33 +2759,23 @@ def cmd_chat(user_message, persona):
 
     full_prompt = (stable_block + ("\n" + dynamic_block if dynamic_block else "") + "\n\nUser: " + user_message)
 
-    payload = json.dumps({
-        "model": "claude-sonnet-4-5",
-        "max_tokens": 250,
-        "system": system_blocks,
-        "messages": [{"role": "user", "content": user_message}]
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.anthropic.com/v1/messages",
-        data=payload,
-        headers={
-            "Content-Type":         "application/json",
-            "x-api-key":            api_key,
-            "anthropic-version":    "2023-06-01",
-            "anthropic-beta":       "prompt-caching-2024-07-31",
-        },
-        method="POST"
-    )
     try:
-        data  = json.loads(urlopen_with_retry(req, timeout=30))
-        usage = data.get("usage", {})
-        record_ai_cost(_UDIR, usage.get("input_tokens", 0), usage.get("output_tokens", 0))
-        reply = data["content"][0]["text"].strip()
+        result = ai_client.chat(
+            provider=provider,
+            model=ai_client.model_for("chat", provider),
+            system=system_blocks,
+            user_message=user_message,
+            max_tokens=250,
+            cache_system=True,
+            timeout=30,
+        )
+        if not ai_client.is_free(provider):
+            record_ai_cost(_UDIR, result["input_tokens"], result["output_tokens"])
+        reply = result["text"].strip()
         return f"_{reply}_\n\n— {persona['name']}", full_prompt
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
-        log.error(f"Anthropic API {e.code}: {body}")
+        log.error(f"{provider} API {e.code}: {body}")
         return f"⚠️ Coach is unavailable right now: {e}", None
     except Exception as e:
         return f"⚠️ Coach is unavailable right now: {e}", None
@@ -3530,6 +3583,10 @@ def handle_message(token, message):
         persona = load_active_persona(_UDIR / "config.json")
         if reply is None:
             log_query(_UDIR, chat_id, _user_name, text, "[coach picker shown]")
+    elif cmd in ("provider", "ai"):
+        reply = cmd_provider(args, token=token, chat_id=chat_id)
+        if reply is None:
+            log_query(_UDIR, chat_id, _user_name, text, "[provider picker shown]")
     elif cmd == "ride":
         result = cmd_ride(persona)
         reply, voice_text = result if isinstance(result, tuple) else (result, None)
