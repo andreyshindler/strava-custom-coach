@@ -3464,8 +3464,14 @@ def handle_message(token, message):
         return
 
     # ── Demo quota check (AI commands only) ───────────────────────────────────
+    # Skip entirely when the active provider is free (e.g. NVIDIA) — those
+    # calls never spend, so the dollar allowance must not gate them.
     _ai_group = CMD_GROUPS.get(_rate_cmd, "free")
-    if _ai_group in ("ai_and_strava", "ai_only"):
+    try:
+        _provider = ai_client.resolve_provider(load_config(_UDIR))
+    except Exception:
+        _provider = ai_client.resolve_provider(None)
+    if _ai_group in ("ai_and_strava", "ai_only") and not ai_client.is_free(_provider):
         _quota_ok, _spent, _allowance = check_demo_quota(_UDIR)
         if not _quota_ok:
             send_message(token, chat_id,
