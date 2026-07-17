@@ -37,8 +37,8 @@ DEFAULT_MODELS = {
         "plan": "claude-haiku-4-5-20251001",
     },
     "nvidia": {
-        "chat": os.environ.get("NVIDIA_CHAT_MODEL", "meta/llama-3.3-70b-instruct"),
-        "plan": os.environ.get("NVIDIA_PLAN_MODEL", "meta/llama-3.3-70b-instruct"),
+        "chat": os.environ.get("NVIDIA_CHAT_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
+        "plan": os.environ.get("NVIDIA_PLAN_MODEL", "nvidia/nemotron-3-super-120b-a12b"),
     },
 }
 
