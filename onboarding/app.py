@@ -21,6 +21,7 @@ import re
 import secrets
 import subprocess
 import sys
+import threading
 import urllib.parse
 import urllib.request
 from functools import wraps
@@ -740,8 +741,8 @@ def webhook_event():
     event = request.get_json(force=True, silent=True) or {}
     print(f"[webhook] Event: {event}")
 
-    # Acknowledge immediately (Strava requires 200 within 2s)
-    # We process synchronously here — acceptable for low traffic
+    # Return 200 immediately — Strava retries if it doesn't get one within 2s,
+    # which causes duplicate notifications when processing is slow.
     if event.get("object_type") != "activity" or event.get("aspect_type") == "delete":
         return Response("EVENT_RECEIVED", 200)
 
@@ -751,39 +752,41 @@ def webhook_event():
     if not isinstance(owner_id, int):
         return Response("EVENT_RECEIVED", 200)
 
-    user_dir = _find_user_by_strava_id(owner_id)
-    if not user_dir:
-        print(f"[webhook] No user found for Strava owner_id={owner_id}")
-        return Response("EVENT_RECEIVED", 200)
+    def _process():
+        user_dir = _find_user_by_strava_id(owner_id)
+        if not user_dir:
+            print(f"[webhook] No user found for Strava owner_id={owner_id}")
+            return
 
-    try:
-        activity = get_activity(activity_id, user_dir=user_dir)
-    except Exception as e:
-        print(f"[webhook] Failed to fetch activity {activity_id}: {e}")
-        return Response("EVENT_RECEIVED", 200)
+        try:
+            activity = get_activity(activity_id, user_dir=user_dir)
+        except Exception as e:
+            print(f"[webhook] Failed to fetch activity {activity_id}: {e}")
+            return
 
-    sport = activity.get("sport_type") or activity.get("type", "")
-    if sport not in CYCLING_TYPES:
-        print(f"[webhook] Skipping non-cycling activity ({sport})")
-        return Response("EVENT_RECEIVED", 200)
+        sport = activity.get("sport_type") or activity.get("type", "")
+        if sport not in CYCLING_TYPES:
+            print(f"[webhook] Skipping non-cycling activity ({sport})")
+            return
 
-    try:
-        cfg      = json.loads((user_dir / "config.json").read_text())
-        if not cfg.get("auto_notify", True):
-            print(f"[webhook] Notifications disabled for owner_id={owner_id} — skipping")
-            return Response("EVENT_RECEIVED", 200)
-        ftp      = cfg.get("ftp", 220)
-        weight   = cfg.get("weight_kg", 75)
-        chat_id  = str(cfg.get("telegram_chat_id", ""))
-        persona  = load_active_persona(user_dir / "config.json")
-        msg      = _build_ride_message(activity, ftp, weight, persona)
-        bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
-        if bot_token and chat_id:
-            _tg_send_msg(chat_id, msg, bot_token)
-            print(f"[webhook] Notified {chat_id} for activity {activity_id}")
-    except Exception as e:
-        print(f"[webhook] Error processing activity {activity_id}: {e}")
+        try:
+            cfg      = json.loads((user_dir / "config.json").read_text())
+            if not cfg.get("auto_notify", True):
+                print(f"[webhook] Notifications disabled for owner_id={owner_id} — skipping")
+                return
+            ftp       = cfg.get("ftp", 220)
+            weight    = cfg.get("weight_kg", 75)
+            chat_id   = str(cfg.get("telegram_chat_id", ""))
+            persona   = load_active_persona(user_dir / "config.json")
+            msg       = _build_ride_message(activity, ftp, weight, persona)
+            bot_token = os.environ.get("STRAVA_TELEGRAM_BOT_TOKEN", "")
+            if bot_token and chat_id:
+                _tg_send_msg(chat_id, msg, bot_token)
+                print(f"[webhook] Notified {chat_id} for activity {activity_id}")
+        except Exception as e:
+            print(f"[webhook] Error processing activity {activity_id}: {e}")
 
+    threading.Thread(target=_process, daemon=True).start()
     return Response("EVENT_RECEIVED", 200)
 
 
