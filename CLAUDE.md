@@ -87,7 +87,7 @@ python3 scripts/complete_auth.py YOUR_CODE   # Complete Strava OAuth handshake
 - **[scripts/strava_cache.py](scripts/strava_cache.py)** — Local JSON cache of ride data (stores up to 500 activities) at `~/.cache/strava/activities.json` to reduce API calls.
 - **[scripts/webhook.py](scripts/webhook.py)** — Strava webhook server (~405 lines): receives new ride events, auto-analyzes, and sends Telegram summary. Also manages webhook subscriptions (subscribe/list/delete).
 - **[scripts/healthcheck.py](scripts/healthcheck.py)** — Bot process + Docker container health monitor. Checks native VPS bot and all `strava-coach-*` containers. Auto-restarts on failure and sends Telegram alerts to both owner and affected user.
-- **[onboarding/app.py](onboarding/app.py)** — Flask web service (~913 lines). Handles Strava OAuth for new users, nonce-based Telegram-linked onboarding (`/tg/callback`), admin dashboard (`/admin`), per-user query history viewer (`/admin/<chat_id>` and `/admin/history/<chat_id>`), quota management, and Strava webhook events. Spawns per-user Docker containers via a least-privilege `dockerproxy` service.
+- **[onboarding/app.py](onboarding/app.py)** — Flask web service (~916 lines). Handles Strava OAuth for new users, nonce-based Telegram-linked onboarding (`/tg/callback`), admin dashboard (`/admin`), per-user query history viewer (`/admin/<chat_id>` and `/admin/history/<chat_id>`), quota management, and Strava webhook events (processed asynchronously in daemon threads to return 200 immediately and avoid Strava retries). Spawns per-user Docker containers via a least-privilege `dockerproxy` service.
 
 ### Coaching Personas
 
